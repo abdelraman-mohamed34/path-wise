@@ -1,0 +1,15 @@
+import { configureStore } from '@reduxjs/toolkit'
+import langReducer from '../store/lang/changeLang'
+import themeReducer from '../store/theme/changeTheme'
+
+export const store = configureStore({
+    reducer: {
+        language: langReducer,
+        theme: themeReducer,
+    },
+})
+
+// Infer the `RootState` and `AppDispatch` types from the store itself
+export type RootState = ReturnType<typeof store.getState>
+// Inferred type: {posts: PostsState, comments: CommentsState, users: UsersState}
+export type AppDispatch = typeof store.dispatch
