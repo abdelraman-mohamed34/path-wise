@@ -5,25 +5,28 @@ import { toggleTheme } from "@/store/theme/changeTheme";
 import { useDispatch, useSelector } from "react-redux";
 import { RootState } from '@/app/store';
 import { useMap } from 'react-map-gl/maplibre';
+import { setUserLocation, setViewLocation } from '@/store/location/location';
 
 function Btns() {
     const mode = useSelector((m: RootState) => m.theme.mode);
     const dispatch = useDispatch();
     const [mounted, setMounted] = useState(false);
 
-    const { current: map } = useMap();
+    const { "main-map": map } = useMap();
 
     useEffect(() => {
         setMounted(true);
     }, []);
 
     const handleLocationClick = () => {
-        if (!map) return;
+        if (!map || !navigator.geolocation) return;
 
         navigator.geolocation.getCurrentPosition(
             (position) => {
                 const { longitude, latitude } = position.coords;
-
+                if (longitude && latitude) {
+                    dispatch(setUserLocation({ lat: latitude, lng: longitude }));
+                }
                 map.flyTo({
                     center: [longitude, latitude],
                     zoom: 15,
@@ -32,12 +35,20 @@ function Btns() {
                 });
             },
             (error) => {
-                console.error("Error getting location:", error);
+                console.error("❌ حصل مشكلة في جلب الموقع:", error.message);
+                if (error.code === 1) {
+                    alert("يا هندسة أنت رافض إذن الوصول للموقع، فعلها من جنب الـ URL فوق");
+                }
+
                 map.flyTo({ center: [31.2357, 30.0444], zoom: 12 });
+            },
+            {
+                enableHighAccuracy: true,
+                timeout: 12000,
+                maximumAge: 0
             }
         );
     };
-
     return (
         <div className="bg-card/90 absolute right-4 top-4 md:right-8 md:top-8 z-20 flex flex-col gap-0 pointer-events-auto rounded-[0.5rem] overflow-hidden">
             {/* theme-btn */}
@@ -50,7 +61,7 @@ function Btns() {
                 ) : mode === 'dark' ? (
                     <SunIcon className="size-6 text-amber-400" />
                 ) : (
-                    <MoonIcon className="size-6 text-blue-600" /> 
+                    <MoonIcon className="size-6 text-blue-600" />
                 )}
             </button>
 

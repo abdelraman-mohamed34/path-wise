@@ -1,29 +1,78 @@
-import { createSlice, PayloadAction } from '@reduxjs/toolkit';
+"use client";
+import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
+import axios from 'axios';
 
-interface Location {
+type Coords = {
+    lat: number;
+    lng: number;
+}
+type Location = {
     id: string;
     name: string;
-    coords: { lat: number; lng: number };
+    coords: Coords;
 }
-
-interface RouteState {
-    locations: Location[];
+type RouteState = {
+    nowViewLocation: Coords | null;
+    userLocation: Coords | null;
+    results: Location[];
+    locations: Location[],
     optimizedOrder: string[];
     status: 'idle' | 'loading' | 'success' | 'error';
+    thisLocationIsMine: boolean;
 }
 
 const initialState: RouteState = {
+    nowViewLocation: null,
+    userLocation: null,
+    thisLocationIsMine: false,
+    results: [],
     locations: [],
     optimizedOrder: [],
     status: 'idle',
 };
 
+export const searchLocation = createAsyncThunk(
+    'route/searchLocation',
+    async (query: string, { rejectWithValue }) => {
+        try {
+            const API_KEY = process.env.NEXT_PUBLIC_MAPTILER_KEY;
+            const response = await axios.get(
+                `https://api.maptiler.com/geocoding/${encodeURIComponent(query)}.json?key=${API_KEY}`
+            );
+
+            const feature = response.data.features[0];
+            if (!feature) throw new Error("المكان غير موجود");
+
+            return {
+                id: feature.id,
+                name: feature.place_name,
+                coords: {
+                    lng: feature.center[0],
+                    lat: feature.center[1]
+                }
+            };
+        } catch (error: any) {
+            return rejectWithValue(error.message || "search failed");
+        }
+    }
+);
+
 export const routeSlice = createSlice({
     name: 'route',
     initialState,
     reducers: {
+        setViewLocation: (state, action: PayloadAction<Coords | null>) => {
+            state.nowViewLocation = action.payload;
+            state.thisLocationIsMine = false;
+        },
+        setUserLocation: (state, action: PayloadAction<Coords | null>) => {
+            state.userLocation = action.payload;
+            state.nowViewLocation = action.payload;
+            state.thisLocationIsMine = true;
+        },
         addLocation: (state, action: PayloadAction<Location>) => {
             state.locations.push(action.payload);
+            state.nowViewLocation = null;
         },
         removeLocation: (state, action: PayloadAction<string>) => {
             state.locations = state.locations.filter(loc => loc.id !== action.payload);
@@ -36,7 +85,31 @@ export const routeSlice = createSlice({
             state.status = action.payload;
         }
     },
+
+    extraReducers: (builder) => {
+        builder
+            .addCase(searchLocation.pending, (state) => {
+                state.status = 'loading';
+            })
+            .addCase(searchLocation.fulfilled, (state, action) => {
+                state.status = 'success';
+                state.results = [action.payload];
+                state.nowViewLocation = action.payload.coords;
+                state.thisLocationIsMine = false;
+            })
+            .addCase(searchLocation.rejected, (state) => {
+                state.status = 'error';
+            });
+    }
 });
 
-export const { addLocation, removeLocation, setOptimizedOrder, setRouteStatus } = routeSlice.actions;
+export const {
+    setViewLocation,
+    setUserLocation,
+    addLocation,
+    removeLocation,
+    setOptimizedOrder,
+    setRouteStatus
+} = routeSlice.actions;
+
 export default routeSlice.reducer;

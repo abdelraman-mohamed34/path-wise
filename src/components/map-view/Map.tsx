@@ -7,6 +7,7 @@ import { RootState } from "@/app/store";
 import Sidebar from "./Sidebar";
 import Btns from "./Btns";
 import maplibregl from 'maplibre-gl';
+import { Marker } from "react-map-gl/maplibre";
 
 if (typeof window !== "undefined" && maplibregl.getRTLTextPluginStatus() === 'unavailable') {
     maplibregl.setRTLTextPlugin(
@@ -14,8 +15,8 @@ if (typeof window !== "undefined" && maplibregl.getRTLTextPluginStatus() === 'un
         true
     );
 }
-
 export default function Map() {
+    const { nowViewLocation, thisLocationIsMine } = useSelector((p: RootState) => p.location)
     const mode = useSelector((state: RootState) => state.theme.mode);
     const MAPTILER_KEY = process.env.NEXT_PUBLIC_MAPTILER_KEY;
 
@@ -32,16 +33,40 @@ export default function Map() {
 
     return (
         <main className="relative h-[100dvh] w-full overflow-hidden bg-background">
-            <MapProvider>
 
+            <MapProvider>
                 {/* layer-1: the map */}
                 <div className="absolute inset-0 z-0">
                     <MapGL
                         {...viewState}
+                        id="main-map"
                         onMove={e => setViewState(e.viewState)}
                         mapStyle={mapStyle}
                         style={{ width: "100%", height: "100%" }}
                     >
+                        {/* user pin */}
+                        {nowViewLocation && (
+                            <Marker
+                                longitude={nowViewLocation.lng}
+                                latitude={nowViewLocation.lat}
+                                anchor="bottom"
+                            >
+                                {thisLocationIsMine === true ? (
+                                    <div className="relative flex items-center justify-center">
+                                        <span className="absolute size-9 bg-blue-500/40 rounded-full animate-ping" />
+                                        <span className="size-5 bg-blue-600 border-[3px] border-white rounded-full shadow-md shadow-black/20" />
+                                    </div>
+                                ) : (
+                                    <div className="flex flex-col items-center group">
+                                        <div className="relative flex items-center justify-center size-8 bg-destructive rounded-full shadow-lg border-2 border-white transform group-hover:scale-110 transition-transform duration-200">
+                                            <div className="size-2 bg-white rounded-full" />
+                                        </div>
+                                        <div className="w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[8px] border-t-destructive -mt-[2px]" />
+                                        <div className="size-2 bg-black/20 rounded-full blur-[2px] mt-1" />
+                                    </div>
+                                )}
+                            </Marker>
+                        )}
                     </MapGL>
                 </div>
 
