@@ -1,0 +1,51 @@
+import { CarFront, MoreHorizontal } from 'lucide-react'
+import React, { useState } from 'react'
+import Options from './Options'
+import { AnimatePresence } from 'framer-motion'
+
+type Props = {
+    coords: {
+        lat: number;
+        lng: number;
+    }
+}
+
+function QuickBtns({ coords }: Props) {
+    const [showOptions, setShowOptions] = useState<boolean>(false)
+
+    const handleShowOptions = (): void => {
+        setShowOptions(prev => !prev)
+    }
+
+    return (
+        <div className="flex gap-2 w-full relative">
+
+            {/* start */}
+            <button className="flex-1 flex justify-center items-center gap-2 py-3 bg-[#0C79FE] text-white rounded-md hover:brightness-110 active:scale-[0.98] transition-all uppercase text-[11px] font-bold tracking-[2px] shadow-lg shadow-blue-500/20">
+                <CarFront size={18} strokeWidth={2.5} />
+                <span>Start</span>
+            </button>
+
+            {/* more */}
+            <button
+                onClick={handleShowOptions}
+                aria-label="More options"
+                className={`p-3 rounded-md transition-all flex items-center justify-center active:scale-[0.95] bg-secondary/80 hover:bg-secondary/40`}
+            >
+                <MoreHorizontal size={24} />
+            </button>
+
+            <AnimatePresence>
+                {showOptions && (
+                    <Options
+                        showOptions={showOptions}
+                        setShowOptions={setShowOptions}
+                        coords={coords}
+                    />
+                )}
+            </AnimatePresence>
+        </div>
+    )
+}
+
+export default QuickBtns

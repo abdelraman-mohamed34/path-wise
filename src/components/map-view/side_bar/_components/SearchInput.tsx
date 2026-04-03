@@ -1,13 +1,18 @@
+'use client'
 import { AppDispatch } from '@/app/store';
 import useDebounce from '@/hooks/useDebounce';
-import { searchLocation } from '@/store/location/location';
+import { searchLocation } from '@/store/location/locationSlice';
 import { MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 import React, { useEffect, useState } from 'react'
 import { useDispatch } from 'react-redux';
 
-function SearchInput() {
+interface ResultsProps {
+    searchTerm: string;
+    setSearchTerm: (value: string) => void;
+}
 
-    const [searchTerm, setSearchTerm] = useState<string>("")
+function SearchInput({ searchTerm, setSearchTerm }: ResultsProps) {
+
     const dispatch = useDispatch<AppDispatch>()
 
     const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -20,15 +25,17 @@ function SearchInput() {
         dispatch(searchLocation(debouncedSearch))
     }, [debouncedSearch, dispatch])
 
+    console.log('SearchInput.tsx rendered')
+
     return (
-        <div className="relative group">
-            <MagnifyingGlassIcon className="absolute left-4 top-1/2 -translate-y-1/2 size-5 text-muted-foreground group-focus-within:text-primary transition-colors" />
+        <div className="relative group mb-3">
+            <MagnifyingGlassIcon className="absolute md:left-4 left-[10px] top-1/2 -translate-y-1/2 md:size-5 size-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
             <input
                 type="text"
                 placeholder="Search for a place..."
                 value={searchTerm}
                 onChange={handleSearch}
-                className="w-full h-12 pl-12 pr-4 bg-secondary/50 rounded-2xl border border-border focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+                className="md:text-xd text-[13px] w-full h-[36px] md:pl-10 pl-8 pr-4 bg-secondary rounded-[8px] focus:outline-none focus:ring-1 focus:ring-primary/20 transition-all"
             />
         </div>
     )

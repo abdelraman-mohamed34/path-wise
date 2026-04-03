@@ -1,56 +1,62 @@
 'use client'
-import { MapPinIcon, MoonIcon, SunIcon } from 'lucide-react'
-import React, { useEffect, useState } from 'react'
-import { toggleTheme } from "@/store/theme/changeTheme";
+import { MapPinIcon, MoonIcon, Router, SunIcon } from 'lucide-react'
+import React, { memo, useEffect, useState, useMemo } from 'react'
+import { toggleTheme } from "@/store/theme/themeSlice";
 import { useDispatch, useSelector } from "react-redux";
 import { RootState } from '@/app/store';
 import { useMap } from 'react-map-gl/maplibre';
-import { setUserLocation, setViewLocation } from '@/store/location/location';
+import { setUserLocation } from '@/store/location/locationSlice';
+import { useRouter } from 'next/navigation';
+import { useRecentSearches } from '@/hooks/useAddToRecent';
 
-function Btns() {
+const Btns = memo(function Btns() {
     const mode = useSelector((m: RootState) => m.theme.mode);
-    const dispatch = useDispatch();
     const [mounted, setMounted] = useState(false);
 
+    const dispatch = useDispatch();
     const { "main-map": map } = useMap();
 
     useEffect(() => {
         setMounted(true);
     }, []);
 
-    const handleLocationClick = () => {
+    const router = useRouter()
+    const { addToRecent } = useRecentSearches()
+
+    const handleGoToUserLocation = () => {
         if (!map || !navigator.geolocation) return;
 
+        const savedUserCoords = localStorage.getItem('userCoords');
+
+        if (savedUserCoords) {
+            try {
+                const { lat, lng }: { lat: number, lng: number } = JSON.parse(savedUserCoords);
+                console.log(lat, lng)
+                router.push(`?lat=${lat}&lng=${lng}&m=true`);
+                addToRecent({ lat: lat, lng: lng })
+                return;
+            } catch (e) {
+                localStorage.removeItem('userCoords');
+                console.log(e)
+            }
+        }
+
         navigator.geolocation.getCurrentPosition(
-            (position) => {
-                const { longitude, latitude } = position.coords;
-                if (longitude && latitude) {
-                    dispatch(setUserLocation({ lat: latitude, lng: longitude }));
-                }
-                map.flyTo({
-                    center: [longitude, latitude],
-                    zoom: 15,
-                    duration: 2500,
-                    essential: true
-                });
+            (p) => {
+                const lat = p.coords.latitude;
+                const lng = p.coords.longitude;
+                localStorage.setItem('userCoords', JSON.stringify({ lat, lng }));
+                router.push(`?lat=${lat}&lng=${lng}&m=true`);
             },
             (error) => {
-                console.error("❌ حصل مشكلة في جلب الموقع:", error.message);
-                if (error.code === 1) {
-                    alert("يا هندسة أنت رافض إذن الوصول للموقع، فعلها من جنب الـ URL فوق");
-                }
-
-                map.flyTo({ center: [31.2357, 30.0444], zoom: 12 });
-            },
-            {
-                enableHighAccuracy: true,
-                timeout: 12000,
-                maximumAge: 0
+                const msg = error.code === 1 ? 'Location access denied' : 'Could not find location';
             }
         );
     };
+
+    // console.log('Btns.tsx rendered')
     return (
-        <div className="bg-card/90 absolute right-4 top-4 md:right-8 md:top-8 z-20 flex flex-col gap-0 pointer-events-auto rounded-[0.5rem] overflow-hidden">
+        <div className="bg-card/98 absolute right-2 top-1 md:right-8 md:top-8 z-20 flex flex-col gap-0 pointer-events-auto rounded-[8px] overflow-hidden">
             {/* theme-btn */}
             <button
                 onClick={() => dispatch(toggleTheme())}
@@ -61,19 +67,19 @@ function Btns() {
                 ) : mode === 'dark' ? (
                     <SunIcon className="size-6 text-amber-400" />
                 ) : (
-                    <MoonIcon className="size-6 text-blue-600" />
+                    <MoonIcon className="size-6 text-primary" />
                 )}
             </button>
 
             {/* location-btn */}
             <button
-                onClick={handleLocationClick}
+                onClick={handleGoToUserLocation}
                 className="size-12 md:size-14 flex items-center justify-center hover:bg-secondary active:scale-90 transition-all text-foreground"
             >
-                <MapPinIcon className="size-6" />
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-send-icon lucide-send"><path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z" /><path d="m21.854 2.147-10.94 10.939" /></svg>
             </button>
         </div>
     )
-}
+})
 
 export default Btns;

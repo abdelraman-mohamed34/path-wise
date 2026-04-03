@@ -1,7 +1,6 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
-
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
@@ -39,6 +38,7 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
+  --color-window: var(--window);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -51,16 +51,17 @@
 :root {
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
+  --card: #F7F7F6;
+  --window: oklch(100% 0.00011 271.152);
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
+  --primary: #0C79FE;
   --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
+  --secondary: #E9E9E9;
   --secondary-foreground: oklch(0.205 0 0);
   --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
+  --muted-foreground: #868782;
   --accent: oklch(0.97 0 0);
   --accent-foreground: oklch(0.205 0 0);
   --destructive: oklch(0.577 0.245 27.325);
@@ -87,6 +88,7 @@
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
   --card: oklch(0.205 0 0);
+  --window: oklch(23.929% 0.00003 271.152);
   --card-foreground: oklch(0.985 0 0);
   --popover: oklch(0.205 0 0);
   --popover-foreground: oklch(0.985 0 0);
@@ -128,6 +130,19 @@ button {
 
   body {
     @apply bg-background text-foreground;
+    font-family: sans-bold;
+    font-family: sans;
+  }
+
+
+  @font-face {
+    font-family: sans;
+    src: url('../../public/fonts/english/GoogleSans-Regular.ttf')
+  }
+
+  @font-face {
+    font-family: sans-bold;
+    src: url('../../public/fonts/english/GoogleSans-Medium.ttf')
   }
 
   html {

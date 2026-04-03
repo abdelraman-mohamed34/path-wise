@@ -11,8 +11,8 @@ type Location = {
     name: string;
     coords: Coords;
 }
+
 type RouteState = {
-    nowViewLocation: Coords | null;
     userLocation: Coords | null;
     results: Location[];
     locations: Location[],
@@ -22,7 +22,6 @@ type RouteState = {
 }
 
 const initialState: RouteState = {
-    nowViewLocation: null,
     userLocation: null,
     thisLocationIsMine: false,
     results: [],
@@ -35,7 +34,7 @@ export const searchLocation = createAsyncThunk(
     'route/searchLocation',
     async (query: string, { rejectWithValue }) => {
         try {
-            const API_KEY = process.env.NEXT_PUBLIC_MAPTILER_KEY;
+            const API_KEY = process.env.NEXT_PUBLIC_MAP_KEY;
             const response = await axios.get(
                 `https://api.maptiler.com/geocoding/${encodeURIComponent(query)}.json?key=${API_KEY}`
             );
@@ -61,18 +60,12 @@ export const routeSlice = createSlice({
     name: 'route',
     initialState,
     reducers: {
-        setViewLocation: (state, action: PayloadAction<Coords | null>) => {
-            state.nowViewLocation = action.payload;
-            state.thisLocationIsMine = false;
-        },
         setUserLocation: (state, action: PayloadAction<Coords | null>) => {
             state.userLocation = action.payload;
-            state.nowViewLocation = action.payload;
             state.thisLocationIsMine = true;
         },
         addLocation: (state, action: PayloadAction<Location>) => {
             state.locations.push(action.payload);
-            state.nowViewLocation = null;
         },
         removeLocation: (state, action: PayloadAction<string>) => {
             state.locations = state.locations.filter(loc => loc.id !== action.payload);
@@ -85,7 +78,6 @@ export const routeSlice = createSlice({
             state.status = action.payload;
         }
     },
-
     extraReducers: (builder) => {
         builder
             .addCase(searchLocation.pending, (state) => {
@@ -94,17 +86,15 @@ export const routeSlice = createSlice({
             .addCase(searchLocation.fulfilled, (state, action) => {
                 state.status = 'success';
                 state.results = [action.payload];
-                state.nowViewLocation = action.payload.coords;
                 state.thisLocationIsMine = false;
             })
             .addCase(searchLocation.rejected, (state) => {
                 state.status = 'error';
-            });
+            })
     }
 });
 
 export const {
-    setViewLocation,
     setUserLocation,
     addLocation,
     removeLocation,

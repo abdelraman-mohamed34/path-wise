@@ -1,12 +1,10 @@
 "use client";
 import {
-    ChartBarIcon,
     MapIcon,
     ClockIcon,
     ArrowTrendingUpIcon,
     UserCircleIcon
 } from "@heroicons/react/24/outline";
-import Recent from "./Recent";
 import Performance from "./Performance";
 
 export default function page() {
@@ -54,9 +52,6 @@ export default function page() {
 
                 {/* Analytics Chart */}
                 <Performance />
-
-                {/* Recent Activities */}
-                <Recent />
 
             </div>
         </div>
