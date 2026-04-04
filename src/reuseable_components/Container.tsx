@@ -1,16 +1,21 @@
-import React, { ReactNode } from 'react'
+import React from 'react';
+import { cn } from '@/lib/utils';
 
-type ContainerTypes = {
-    children: ReactNode,
-    className?: string,
+interface ContainerProps {
+    children: React.ReactNode;
+    className?: string;
 }
 
-function Container({ children, className = "" }: ContainerTypes) {
+const Container = ({ children, className }: ContainerProps) => {
     return (
-        <div className={`w-full animate-in fade-in slide-in-from-bottom-4 duration-500 scrollbar-none ${className}`}>
+        <div className={cn(
+            "w-full",
+            "animate-in fade-in slide-in-from-bottom-2 duration-300 ease-out",
+            className
+        )}>
             {children}
         </div>
-    )
-}
+    );
+};
 
-export default Container
+export default Container;

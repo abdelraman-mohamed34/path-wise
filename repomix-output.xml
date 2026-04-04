@@ -487,7 +487,7 @@ function DrawerOverlay({
     <DrawerPrimitive.Overlay
       data-slot="drawer-overlay"
       className={cn(
-        "fixed inset-0 z-50 bg-black/10 supports-backdrop-filter:backdrop-blur-xs data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
+        "fixed inset-0 z-50 bg-black/40 md:supports-backdrop-filter:backdrop-blur-xs md:data-open:animate-in md:data-open:fade-in-0 md:data-closed:animate-out md:data-closed:fade-out-0",
         className
       )}
       {...props}
@@ -639,22 +639,27 @@ export function cn(...inputs: ClassValue[]) {
 </file>
 
 <file path="src/reuseable_components/Container.tsx">
-import React, { ReactNode } from 'react'
+import React from 'react';
+import { cn } from '@/lib/utils';
 
-type ContainerTypes = {
-    children: ReactNode,
-    className?: string,
+interface ContainerProps {
+    children: React.ReactNode;
+    className?: string;
 }
 
-function Container({ children, className = "" }: ContainerTypes) {
+const Container = ({ children, className }: ContainerProps) => {
     return (
-        <div className={`w-full animate-in fade-in slide-in-from-bottom-4 duration-500 scrollbar-none ${className}`}>
+        <div className={cn(
+            "w-full",
+            "animate-in fade-in slide-in-from-bottom-2 duration-300 ease-out",
+            className
+        )}>
             {children}
         </div>
-    )
-}
+    );
+};
 
-export default Container
+export default Container;
 </file>
 
 <file path="src/reuseable_components/H2.tsx">
@@ -717,195 +722,6 @@ const formatFeature = (feature: any, map_key: string | undefined) => {
         reviewsCount: Math.floor(Math.random() * 900) + 50,
     };
 };
-</file>
-
-<file path="src/store/details/api/fetchLocationDetails.ts">
-import { RootState } from "@/app/store";
-import { createAsyncThunk } from "@reduxjs/toolkit";
-import axios from "axios";
-
-export interface LocationDetail {
-    id: string;
-    name: string;
-    shortName: string;
-    coords: { lat: number; lng: number };
-    image: string;
-    category: string;
-    rating: string;
-    reviewsCount: number;
-}
-
-
-export interface LocationDetail {
-    id: string;
-    name: string;
-    shortName: string;
-    coords: { lat: number; lng: number };
-    image: string;
-    category: string;
-    rating: string;
-    reviewsCount: number;
-}
-
-export const getLocationDetails = createAsyncThunk<
-    LocationDetail,
-    { lat: number; lng: number },
-    { rejectValue: string; state: RootState }
->(
-    'details/getLocationDetails',
-    async (coords, { rejectWithValue }) => {
-        try {
-            const map_key = process.env.NEXT_PUBLIC_MAP_KEY;
-
-            if (!map_key) {
-                return rejectWithValue("Map API Key is missing. Check your .env file.");
-            }
-
-            // طلب البيانات من MapTiler
-            const locationDetailsURL = `https://api.maptiler.com/geocoding/${coords.lng},${coords.lat}.json?key=${map_key}&types=poi,place,address`;
-            const res = await axios.get(locationDetailsURL);
-
-            const feature = res.data?.features?.[0];
-
-            if (!feature) {
-                return rejectWithValue("Could not find any information for this location.");
-            }
-
-            const placeName = feature.text || feature.place_name?.split(',')[0] || "Unknown Location";
-            const imageUrl = `https://api.maptiler.com/maps/hybrid/static/${coords.lng},${coords.lat},16/500x300.jpg?key=${map_key}`;
-
-            const idSeed = feature.id ? feature.id.length : 7;
-            const stableRating = (3.8 + (idSeed % 12) / 10).toFixed(1);
-            const stableReviews = 50 + (idSeed * 3);
-
-            return {
-                id: feature.id || `${coords.lat.toFixed(4)}-${coords.lng.toFixed(4)}`,
-                name: feature.place_name || placeName,
-                shortName: placeName,
-                coords: coords,
-                image: imageUrl,
-                category: feature.properties?.category?.[0] || feature.properties?.type || "Location",
-                rating: stableRating,
-                reviewsCount: stableReviews
-            };
-
-        } catch (error: any) {
-            let errorMessage = "An unexpected error occurred";
-            if (axios.isAxiosError(error)) {
-                errorMessage = error.response?.data?.message || error.message;
-            } else if (error instanceof Error) {
-                errorMessage = error.message;
-            }
-            console.error("Fetch Details Error:", errorMessage);
-            return rejectWithValue(errorMessage);
-        }
-    },
-    {
-        condition: (coords, { getState }) => {
-            const { details } = getState();
-
-            if (details.status === 'loading') {
-                return false;
-            }
-
-            const lastCoords = details.selectedLocation?.coords;
-            if (lastCoords) {
-                const isSameLat = lastCoords.lat.toFixed(4) === coords.lat.toFixed(4);
-                const isSameLng = lastCoords.lng.toFixed(4) === coords.lng.toFixed(4);
-
-                if (isSameLat && isSameLng) {
-                    return false;
-                }
-            }
-
-            return true;
-        }
-    }
-);
-</file>
-
-<file path="src/store/details/detailsSlice.ts">
-import { createSlice, PayloadAction } from '@reduxjs/toolkit';
-import { fetchCloser } from './api/fetchClosestPlacesThunk';
-import { getLocationDetails } from './api/fetchLocationDetails';
-
-type LocationDetail = {
-    id: string;
-    name: string;
-    shortName: string;
-    coords: { lat: number; lng: number };
-    image: string;
-    category: string;
-    rating: string;
-    reviewsCount: number;
-}
-type Coords = {
-    name?: string
-    lat: number,
-    lng: number
-}
-
-type DetailsState = {
-    selectedLocation: LocationDetail | null;
-    status: 'idle' | 'loading' | 'success' | 'error';
-    error: string | null;
-    nearbyPlaces: LocationDetail[];
-    nearbyLoading: boolean;
-    recentSearched?: (Coords[] | null);
-}
-
-// states
-const initialState: DetailsState = {
-    selectedLocation: null,
-    status: 'idle',
-    error: null,
-    nearbyPlaces: [],
-    nearbyLoading: false,
-    recentSearched: null,
-};
-
-export const details = createSlice({
-    name: 'details',
-    initialState,
-    reducers: {
-        clearDetails: (state) => {
-            state.selectedLocation = null;
-            state.status = 'idle';
-        },
-        addToRecentSearched: (state, action) => {
-            state.recentSearched = action.payload
-        }
-    },
-    extraReducers: (builder) => {
-        builder
-            .addCase(getLocationDetails.pending, (state) => {
-                state.status = 'loading';
-                state.error = null;
-            })
-            .addCase(getLocationDetails.fulfilled, (state, action: PayloadAction<LocationDetail>) => {
-                state.status = 'success';
-                state.selectedLocation = action.payload;
-            })
-            .addCase(getLocationDetails.rejected, (state, action) => {
-                state.status = 'error';
-                state.error = action.payload as string;
-            })
-
-            .addCase(fetchCloser.pending, (state) => {
-                state.nearbyLoading = true;
-            })
-            .addCase(fetchCloser.fulfilled, (state, action: PayloadAction<LocationDetail[]>) => {
-                state.nearbyLoading = false;
-                state.nearbyPlaces = action.payload;
-            })
-            .addCase(fetchCloser.rejected, (state) => {
-                state.nearbyLoading = false;
-            });
-    }
-});
-
-export const { clearDetails, addToRecentSearched } = details.actions;
-export default details.reducer;
 </file>
 
 <file path="src/store/global_data/dataSlice.ts">
@@ -1296,56 +1112,6 @@ export default function page() {
 }
 </file>
 
-<file path="src/components/map-view/main_map/Map.tsx">
-"use client";
-import { useCallback, useState, useMemo, Suspense } from "react";
-import { MapProvider } from "react-map-gl/maplibre";
-import "maplibre-gl/dist/maplibre-gl.css";
-import { useSelector } from "react-redux";
-import { RootState } from "@/app/store";
-import maplibregl from 'maplibre-gl';
-import MapComponent from "./MapComponent";
-import Sidebar from "../side_bar/Sidebar";
-import Btns from "../Btns";
-
-if (typeof window !== "undefined" && maplibregl.getRTLTextPluginStatus() === 'unavailable') {
-    maplibregl.setRTLTextPlugin('https://unpkg.com/@mapbox/mapbox-gl-rtl-text@0.2.3/mapbox-gl-rtl-text.min.js', true);
-}
-
-export default function Map() {
-    const mode = useSelector((state: RootState) => state.theme.mode);
-    const map_key = process.env.NEXT_PUBLIC_MAP_KEY;
-
-    const mapStyle = useMemo(() => (
-        mode === 'dark'
-            ? `https://api.maptiler.com/maps/streets-v2-dark/style.json?key=${map_key}`
-            : `https://api.maptiler.com/maps/streets-v2/style.json?key=${map_key}`
-    ), [mode, map_key]);
-
-
-    return (
-        <main className="relative h-[100dvh] w-full overflow-hidden bg-background">
-            <MapProvider>
-                <div className="absolute inset-0 z-0">
-                    <Suspense>
-                        <MapComponent
-                            mapStyle={mapStyle}
-                        />
-                    </Suspense>
-                </div>
-            </MapProvider>
-
-            <div className="relative z-10 pointer-events-none h-full w-full">
-                <Suspense>
-                    <Sidebar />
-                </Suspense>
-                <Btns />
-            </div>
-        </main>
-    );
-}
-</file>
-
 <file path="src/components/map-view/main_map/MapComponent.tsx">
 "use client";
 import MapGL, { Marker, useMap } from "react-map-gl/maplibre";
@@ -1626,117 +1392,6 @@ function Recent({ sliceRecentTo }: { sliceRecentTo: number }) {
 export default Recent
 </file>
 
-<file path="src/components/map-view/side_bar/_components/results/DetailCard.tsx">
-'use client'
-import React, { useCallback, memo } from 'react' // ضفنا useCallback و memo
-import Window from '@/reuseable_components/Window';
-import { StarIcon as StarSolid } from '@heroicons/react/24/solid';
-import { motion } from 'framer-motion';
-import { MapPin, Clock, Copy, X } from 'lucide-react';
-import QuickBtns from './quick_access/QuickBtns';
-import { toast } from 'sonner';
-import Suggestion from '@/reuseable_components/Suggestion';
-
-interface DetailCardProps {
-    location: any;
-    onBack: () => void;
-}
-
-const DetailCardComponent = ({ location, onBack }: DetailCardProps) => {
-
-    const handleCopyAddress = useCallback(() => {
-        if (location?.name) {
-            navigator.clipboard.writeText(window.location.href);
-            toast.success("Link copied to clipboard");
-        }
-    }, [location?.name]);
-
-    return (
-        <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 20 }}
-            className="w-full flex flex-col h-full bg-card"
-        >
-            {/* Header Section */}
-            <div className='w-full flex justify-between items-start mb-4 px-1'>
-                <div className="flex-1 overflow-hidden pr-2">
-                    <h2 className="text-xl md:text-2xl font-black text-foreground tracking-tighter leading-tight italic uppercase truncate">
-                        {location?.name || "Selected Location"}
-                    </h2>
-                    <div className='flex items-center gap-2 mt-1'>
-                        <StarSolid className="size-4 text-amber-500 shrink-0" />
-                        <span className="text-sm font-bold text-foreground">{location?.rating || "0.0"}</span>
-                        <span className="text-[10px] text-muted-foreground font-medium truncate">
-                            • {location?.reviewsCount || 0} reviews
-                        </span>
-                    </div>
-                </div>
-                <button
-                    type='button'
-                    onClick={onBack}
-                    className="p-2 bg-secondary/50 hover:bg-destructive hover:text-white rounded-full transition-all active:scale-90 shrink-0"
-                >
-                    <X className="size-4" />
-                </button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto hide-scrollbar space-y-5 pb-6">
-
-                {/* Quick Action Buttons */}
-                <QuickBtns coords={location?.coords} />
-
-                {/* Location Details Window */}
-                <Window title='Location Details' className='p-4 space-y-5'>
-                    <div className="flex items-start gap-4 group/item">
-                        <div className="p-2.5 bg-red-600/10 rounded-xl shrink-0">
-                            <MapPin className="size-5 text-red-600" />
-                        </div>
-                        <div className="flex-1 overflow-hidden">
-                            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.15em] mb-1">Address</p>
-                            <p className="text-sm font-semibold text-foreground/90 leading-snug line-clamp-2">
-                                {location?.name || "Address not available"}
-                            </p>
-                        </div>
-                        <button
-                            type='button'
-                            onClick={handleCopyAddress}
-                            className="opacity-0 group-hover/item:opacity-100 p-2 hover:bg-secondary rounded-lg transition-all shrink-0"
-                        >
-                            <Copy className="size-4 text-muted-foreground" />
-                        </button>
-                    </div>
-
-                    <div className="flex items-start gap-4">
-                        <div className="p-2.5 bg-blue-600/10 rounded-xl shrink-0">
-                            <Clock className="size-5 text-blue-600" />
-                        </div>
-                        <div className="flex-1">
-                            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.15em] mb-1">Business Hours</p>
-                            <div className="flex items-center flex-wrap gap-x-2">
-                                <span className={`text-[11px] font-black px-2 py-0.5 rounded-full ${location?.isOpen ? 'bg-emerald-500/10 text-emerald-600' : 'bg-red-500/10 text-red-600'}`}>
-                                    {location?.isOpen ? 'OPEN' : 'CLOSED'}
-                                </span>
-                                <span className="text-xs text-muted-foreground font-medium italic">
-                                    • {location?.hours || "Check schedule"}
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-                </Window>
-
-                {/* Suggestions Section */}
-                <div className="pt-2">
-                    <Suggestion sliceTo={3} />
-                </div>
-            </div>
-        </motion.div>
-    );
-}
-
-export const DetailCard = memo(DetailCardComponent);
-</file>
-
 <file path="src/components/map-view/side_bar/_components/results/LocationCard.tsx">
 import Window from '@/reuseable_components/Window';
 import { MapPinIcon, ChevronRightIcon } from '@heroicons/react/24/outline'
@@ -1878,69 +1533,13 @@ function Options({ setShowOptions, coords }: OptionsProps) {
 export default Options
 </file>
 
-<file path="src/components/map-view/side_bar/_components/results/quick_access/QuickBtns.tsx">
-import { CarFront, MoreHorizontal } from 'lucide-react'
-import React, { useState } from 'react'
-import Options from './Options'
-import { AnimatePresence } from 'framer-motion'
-
-type Props = {
-    coords: {
-        lat: number;
-        lng: number;
-    }
-}
-
-function QuickBtns({ coords }: Props) {
-    const [showOptions, setShowOptions] = useState<boolean>(false)
-
-    const handleShowOptions = (): void => {
-        setShowOptions(prev => !prev)
-    }
-
-    return (
-        <div className="flex gap-2 w-full relative">
-
-            {/* start */}
-            <button type='button' className="flex-1 flex justify-center items-center gap-2 py-3 bg-[#0C79FE] text-white rounded-md hover:brightness-110 active:scale-[0.98] transition-all uppercase text-[11px] font-bold tracking-[2px] shadow-lg shadow-blue-500/20">
-                <CarFront size={18} strokeWidth={2.5} />
-                <span>Start</span>
-            </button>
-
-            {/* more */}
-            <button
-                type='button'
-                onClick={handleShowOptions}
-                aria-label="More options"
-                className={`p-3 rounded-md transition-all flex items-center justify-center active:scale-[0.95] bg-secondary/80 hover:bg-secondary/40`}
-            >
-                <MoreHorizontal size={24} />
-            </button>
-
-            <AnimatePresence>
-                {showOptions && (
-                    <Options
-                        setShowOptions={setShowOptions}
-                        coords={coords}
-                    />
-                )}
-            </AnimatePresence>
-        </div>
-    )
-}
-
-export default QuickBtns
-</file>
-
 <file path="src/components/map-view/side_bar/_components/results/Results.tsx">
 'use client'
 import { useSelector, useDispatch } from 'react-redux'
 import { RootState, AppDispatch } from '@/app/store'
 import { clearDetails } from '@/store/details/detailsSlice'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { useEffect, memo } from 'react'
-
-// components
+import { useEffect, memo, useCallback } from 'react'
 import { DetailCard } from './DetailCard'
 import { LocationCard } from './LocationCard'
 import MyCategory from './categories/MyCategory'
@@ -1955,7 +1554,6 @@ const renderSkeleton = () => (
                 className="flex items-center gap-3 p-3 bg-secondary/30 rounded-xl border border-border/20 animate-pulse"
             >
                 <div className="size-9 shrink-0 rounded-full bg-muted/50" />
-
                 <div className="flex flex-col flex-1 gap-2 overflow-hidden">
                     <div className="h-3.5 w-3/4 bg-muted/60 rounded-md" />
                     <div className="h-2.5 w-1/2 bg-muted/40 rounded-md" />
@@ -1967,13 +1565,17 @@ const renderSkeleton = () => (
 
 function Results() {
     const dispatch = useDispatch<AppDispatch>()
-    const { results, status } = useSelector((state: RootState) => state.location);
-    const { selectedLocation, status: detailsStatus } = useSelector((state: RootState) => state.details);
-    const searchTerm = useSelector((d: RootState) => d.data.inputSearch)
 
+    const results = useSelector((state: RootState) => state.location.results);
+    const status = useSelector((state: RootState) => state.location.status);
+
+
+    const selectedLocation = useSelector((state: RootState) => state.details.selectedLocation);
+    const detailsStatus = useSelector((state: RootState) => state.details.status);
+
+    const searchTerm = useSelector((state: RootState) => state.data.inputSearch);
     const router = useRouter()
     const searchParams = useSearchParams()
-
     const lng = searchParams.get('lng')
     const lat = searchParams.get('lat')
     const hasParams = Boolean(lng && lat)
@@ -1988,16 +1590,15 @@ function Results() {
         router.push('/', { scroll: false })
     }
 
-    const handleGetLocationDetails = (coords: { lat: number; lng: number }) => {
+    const handleGetLocationDetails = useCallback((coords: { lat: number; lng: number }) => {
         router.push(`?lat=${coords.lat}&lng=${coords.lng}`, { scroll: false });
-        dispatch(deleteSearch())
-    };
+        dispatch(deleteSearch());
+    }, [router, dispatch]);
 
     if (status === 'loading' || detailsStatus === 'loading') return renderSkeleton()
 
     return (
-        <div className="flex-1">
-
+        <div className="flex-1 overflow-y-auto overscroll-contain hide-scrollbar px-1">
             {searchTerm && searchTerm.trim() !== "" ? (
                 <>
                     {results && results.length > 0 ? (
@@ -2075,125 +1676,6 @@ function SearchInput() {
 }
 
 export default SearchInput
-</file>
-
-<file path="src/components/map-view/side_bar/Sidebar.tsx">
-'use client'
-
-import React, { useState, useEffect, useRef } from 'react'
-import { motion, useAnimationControls } from 'framer-motion'
-import { useOutsideClick } from '@/hooks/useOutsideClick'
-import { useSearchParams } from 'next/navigation'
-import { useRouter } from 'next/navigation'
-import NearbyPlacesView from '@/components/views/NearbyPlacesView'
-import SearchInput from './_components/SearchInput'
-import Results from './_components/results/Results'
-import Recent from './_components/results/categories/Recent'
-import Favorite from './_components/results/categories/Favorite'
-
-function Sidebar() {
-
-    const SearchParams = useSearchParams()
-
-    const [activeSlide, setActiveSlide] = useState<boolean>(false)
-    const controls = useAnimationControls()
-    const sidebarRef = useRef<HTMLDivElement>(null);
-    const router = useRouter()
-
-    // Logic positions for reusability
-    const positions = {
-        bottom: '82vh',
-        middle: '50vh',
-        top: '10vh'
-    }
-
-    const long = SearchParams.get('lng')
-    const lat = SearchParams.get('lat')
-    const view = SearchParams.get('view')
-    const selectedLocation = long && lat
-
-    useEffect(() => {
-        if (selectedLocation) {
-            controls.start({ y: positions.middle })
-        } else {
-            controls.start({ y: positions.bottom })
-        }
-    }, [selectedLocation, controls])
-
-    const handleDragEnd = (info: any) => {
-        const offsetThreshold = 100
-        const velocityThreshold = 500
-
-        if (info.offset.y < -offsetThreshold || info.velocity.y < -velocityThreshold) {
-            setActiveSlide(true)
-            controls.start({ y: positions.top })
-        }
-        else if (info.offset.y > offsetThreshold || info.velocity.y > velocityThreshold) {
-            setActiveSlide(false)
-            controls.start(selectedLocation ? { y: positions.middle } : { y: positions.bottom })
-        }
-    }
-
-    // Close when clicking outside the sidebarRef
-
-    useOutsideClick(sidebarRef, () => {
-        if (selectedLocation || activeSlide || view) {
-            setActiveSlide(false);
-            router.push('/', { scroll: false });
-            controls.start({ y: positions.bottom });
-        }
-    });
-
-    console.log('sidebar rendered')
-
-    return (
-        <>
-            <aside className="absolute inset-x-0 bottom-0 md:inset-y-0 md:left-0 md:w-96 md:z-30 z-30 md:p-4 pointer-events-none">
-                {/* white board */}
-                <motion.div
-                    ref={sidebarRef}
-                    drag="y"
-                    dragConstraints={{ top: 0, bottom: 0 }}
-                    dragElastic={0.1}
-                    animate={controls}
-                    initial={{ y: positions.bottom }}
-                    onDragEnd={handleDragEnd}
-                    className="h-[100vh] md:h-full w-full bg-card backdrop-blur-xl md:border border-border shadow-2xl rounded-t-[24px] md:rounded-3xl pointer-events-auto md:p-5 p-4 pb-10 flex flex-col md:gap-6 md:!transform-none space-y-3 overflow-hidden"
-                    style={{ touchAction: 'none' }}
-                >
-
-                    {/* drop shadow */}
-                    <div className='w-full flex justify-center items-center md:hidden shrink-0 cursor-grab active:cursor-grabbing'>
-                        <div className='w-12 h-1.5 rounded-full bg-muted-foreground/30' />
-                    </div>
-
-                    {view ? (
-                        <>
-                            {view === 'favorites' && <Favorite sliceFavorsTo={8} />}
-                            {view === 'nearby_places' && <NearbyPlacesView />}
-                            {view === 'recent' && <Recent sliceRecentTo={8} />}
-                        </>
-                    ) : (
-                        <div className="flex flex-col">
-                            {/* 1 */}
-                            {!selectedLocation && <SearchInput />}
-
-                            {/* 2 */}
-                            <div className="flex-1 overflow-hidden mt-4">
-                                {/* the problem */}
-                                <Results />
-                            </div>
-
-                        </div>
-                    )}
-
-                </motion.div>
-            </aside >
-        </>
-    )
-}
-
-export default Sidebar
 </file>
 
 <file path="src/components/views/NearbyPlacesView.tsx">
@@ -2342,6 +1824,670 @@ export const useRecentSearches = () => {
 };
 </file>
 
+<file path="src/reuseable_components/Title.tsx">
+import React, { ReactNode } from 'react'
+import { useRouter } from 'next/navigation'
+import { ArrowRight } from 'lucide-react'
+
+type Title = {
+    text: string,
+    className?: string,
+    icon?: ReactNode,
+}
+function Title({ text, icon, className = "" }: Title) {
+    const router = useRouter()
+    return (
+        <div className={`w-full flex justify-between items-center mb-3 ${className}`}>
+            <h1 className='text-2xl font-black tracking-tighter'>{text}</h1>
+            <button
+                type='button'
+                onClick={() => router.back()}
+                className='bg-secondary p-2 rounded-full active:scale-90 transition-transform'
+            >
+                <ArrowRight className="size-5" />
+            </button>
+        </div>
+    )
+}
+
+export default React.memo(Title)
+</file>
+
+<file path="src/reuseable_components/Window.tsx">
+import React, { memo } from 'react'
+import H2 from './H2';
+import { useSearchParams } from 'next/navigation';
+
+interface WindowProps {
+    children: React.ReactNode;
+    className?: string;
+    title?: string;
+    dontShowTitleAt?: string;
+    onClick?: () => void;
+}
+
+function Window({ children, onClick, title, dontShowTitleAt, className = "" }: WindowProps) {
+    const searchParams = useSearchParams();
+    const view = searchParams.get('view');
+
+    const shouldShowTitle = title && (!view || view !== dontShowTitleAt);
+
+    return (
+        <>
+            {shouldShowTitle && <H2>{title}</H2>}
+
+            <div
+                onClick={onClick}
+                className={`bg-window w-full min-h-20 rounded-md mb-2 p-2 ${className}`}
+            >
+                {children}
+            </div>
+        </>
+    )
+}
+
+export default memo(Window)
+</file>
+
+<file path="src/store/details/api/fetchLocationDetails.ts">
+import { RootState } from "@/app/store";
+import { createAsyncThunk } from "@reduxjs/toolkit";
+import axios from "axios";
+
+export interface LocationDetail {
+    id: string;
+    name: string;
+    shortName: string;
+    coords: { lat: number; lng: number };
+    image: string;
+    category: string;
+    rating: string;
+    reviewsCount: number;
+}
+
+
+export interface LocationDetail {
+    id: string;
+    name: string;
+    shortName: string;
+    coords: { lat: number; lng: number };
+    image: string;
+    category: string;
+    rating: string;
+    reviewsCount: number;
+}
+
+export const getLocationDetails = createAsyncThunk<
+    LocationDetail,
+    { lat: number; lng: number },
+    { rejectValue: string; state: RootState }
+>(
+    'details/getLocationDetails',
+    async (coords, { rejectWithValue }) => {
+        try {
+            const map_key = process.env.NEXT_PUBLIC_MAP_KEY;
+
+            if (!map_key) {
+                return rejectWithValue("Map API Key is missing. Check your .env file.");
+            }
+
+            // طلب البيانات من MapTiler
+            const locationDetailsURL = `https://api.maptiler.com/geocoding/${coords.lng},${coords.lat}.json?key=${map_key}&types=poi,place,address`;
+            const res = await axios.get(locationDetailsURL);
+
+            const feature = res.data?.features?.[0];
+
+            if (!feature) {
+                return rejectWithValue("Could not find any information for this location.");
+            }
+
+            const placeName = feature.text || feature.place_name?.split(',')[0] || "Unknown Location";
+            const imageUrl = `https://api.maptiler.com/maps/hybrid/static/${coords.lng},${coords.lat},16/200x150.jpg?key=${map_key}`;
+
+            const idSeed = feature.id ? feature.id.length : 7;
+            const stableRating = (3.8 + (idSeed % 12) / 10).toFixed(1);
+            const stableReviews = 50 + (idSeed * 3);
+
+            return {
+                id: feature.id || `${coords.lat.toFixed(4)}-${coords.lng.toFixed(4)}`,
+                name: feature.place_name || placeName,
+                shortName: placeName,
+                coords: coords,
+                image: imageUrl,
+                category: feature.properties?.category?.[0] || feature.properties?.type || "Location",
+                rating: stableRating,
+                reviewsCount: stableReviews
+            };
+
+        } catch (error: any) {
+            let errorMessage = "An unexpected error occurred";
+            if (axios.isAxiosError(error)) {
+                errorMessage = error.response?.data?.message || error.message;
+            } else if (error instanceof Error) {
+                errorMessage = error.message;
+            }
+            console.error("Fetch Details Error:", errorMessage);
+            return rejectWithValue(errorMessage);
+        }
+    },
+    {
+        condition: (coords, { getState }) => {
+            const { details } = getState();
+
+            if (details.status === 'loading') {
+                return false;
+            }
+
+            const lastCoords = details.selectedLocation?.coords;
+            if (lastCoords) {
+                const isSameLat = lastCoords.lat.toFixed(4) === coords.lat.toFixed(4);
+                const isSameLng = lastCoords.lng.toFixed(4) === coords.lng.toFixed(4);
+
+                if (isSameLat && isSameLng) {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+    }
+);
+</file>
+
+<file path="src/store/details/detailsSlice.ts">
+import { createSlice, PayloadAction } from '@reduxjs/toolkit';
+import { fetchCloser } from './api/fetchClosestPlacesThunk';
+import { getLocationDetails } from './api/fetchLocationDetails';
+
+type LocationDetail = {
+    id: string;
+    name: string;
+    shortName: string;
+    coords: { lat: number; lng: number };
+    image: string;
+    category: string;
+    rating: string;
+    reviewsCount: number;
+}
+type Coords = {
+    name?: string
+    lat: number,
+    lng: number
+}
+
+type DetailsState = {
+    selectedLocation: LocationDetail | null;
+    status: 'idle' | 'loading' | 'success' | 'error';
+    error: string | null;
+    nearbyPlaces: LocationDetail[];
+    nearbyLoading: boolean;
+    recentSearched?: (Coords[] | null);
+}
+
+// states
+const initialState: DetailsState = {
+    selectedLocation: null,
+    status: 'idle',
+    error: null,
+    nearbyPlaces: [],
+    nearbyLoading: false,
+    recentSearched: null,
+};
+
+export const details = createSlice({
+    name: 'details',
+    initialState,
+    reducers: {
+        clearDetails: (state) => {
+            state.selectedLocation = null;
+            state.status = 'idle';
+        },
+        addToRecentSearched: (state, action) => {
+            state.recentSearched = action.payload
+        }
+    },
+    extraReducers: (builder) => {
+        builder
+            .addCase(getLocationDetails.pending, (state) => {
+                state.status = 'loading';
+                state.error = null;
+            })
+            .addCase(getLocationDetails.fulfilled, (state, action: PayloadAction<LocationDetail>) => {
+                state.status = 'success';
+                state.selectedLocation = action.payload;
+            })
+            .addCase(getLocationDetails.rejected, (state, action) => {
+                state.status = 'error';
+                state.error = action.payload as string;
+            })
+
+            .addCase(fetchCloser.pending, (state) => {
+                state.nearbyLoading = true;
+            })
+            .addCase(fetchCloser.fulfilled, (state, action: PayloadAction<LocationDetail[]>) => {
+                state.nearbyLoading = false;
+                state.nearbyPlaces = action.payload;
+            })
+            .addCase(fetchCloser.rejected, (state) => {
+                state.nearbyLoading = false;
+            });
+    }
+});
+
+export const { clearDetails, addToRecentSearched } = details.actions;
+export default details.reducer;
+</file>
+
+<file path="src/app/page.tsx">
+'use client'
+import { useDispatch, useSelector } from "react-redux";
+import { AppDispatch, RootState } from "./store";
+import { useEffect } from "react";
+import Map from "@/components/map-view/main_map/Map";
+import { fetchCloser } from "@/store/details/api/fetchClosestPlacesThunk";
+import { addToRecentSearched } from "@/store/details/detailsSlice";
+
+type Coords = {
+  name?: string
+  lat: number,
+  lng: number
+}
+
+export default function Home() {
+
+  const dispatch = useDispatch<AppDispatch>()
+
+  // get current coords
+  useEffect(() => {
+    const savedCoords: (string | null) = localStorage.getItem('userCoords')
+    let rightType: (Coords | null) = null; // coords or null
+
+    if (savedCoords) {
+      try {
+        rightType = JSON.parse(savedCoords);
+      } catch (e) {
+        console.error("Parse error", e);
+      }
+    }
+
+    if (rightType) {
+      dispatch(fetchCloser(rightType))
+    } else {
+      // get user coords
+      navigator.geolocation.getCurrentPosition(
+        (p) => {
+          const coords = { lat: p.coords.latitude, lng: p.coords.longitude }
+          dispatch(fetchCloser(coords))
+          localStorage.setItem('userCoords', JSON.stringify(coords))
+        },
+        (e) => {
+          console.log(`cant get this location, ${e}`)
+        }
+      )
+    }
+  }, [])
+
+  // get recent
+  useEffect(() => {
+    const recentFromLocalStorage: (string | null) = localStorage.getItem('recent')
+    let recentSearched: (Coords | null) = null
+    if (recentFromLocalStorage) {
+      recentSearched = JSON.parse(recentFromLocalStorage)
+    }
+    if (recentSearched) {
+      dispatch(addToRecentSearched(recentSearched))
+    }
+  }, [])
+
+  return (
+    <>
+      <Map />
+    </>
+  );
+}
+</file>
+
+<file path="src/components/map-view/main_map/Map.tsx">
+"use client";
+import { useCallback, useState, useMemo, Suspense } from "react";
+import { MapProvider } from "react-map-gl/maplibre";
+import "maplibre-gl/dist/maplibre-gl.css";
+import { useSelector } from "react-redux";
+import { RootState } from "@/app/store";
+import maplibregl from 'maplibre-gl';
+import MapComponent from "./MapComponent";
+import Sidebar from "../side_bar/Sidebar";
+import Btns from "../Btns";
+
+if (typeof window !== "undefined" && maplibregl.getRTLTextPluginStatus() === 'unavailable') {
+    maplibregl.setRTLTextPlugin('https://unpkg.com/@mapbox/mapbox-gl-rtl-text@0.2.3/mapbox-gl-rtl-text.min.js', true);
+}
+
+export default function Map() {
+    const mode = useSelector((state: RootState) => state.theme.mode);
+    const map_key = process.env.NEXT_PUBLIC_MAP_KEY;
+
+    const mapStyle = useMemo(() => (
+        mode === 'dark'
+            ? `https://api.maptiler.com/maps/streets-v2-dark/style.json?key=${map_key}`
+            : `https://api.maptiler.com/maps/streets-v2/style.json?key=${map_key}`
+    ), [mode, map_key]);
+
+
+    return (
+        <main className="relative h-[100dvh] w-full overflow-hidden bg-background">
+            <MapProvider>
+                <div className="absolute inset-0 z-0">
+                    <Suspense>
+                        <MapComponent
+                            mapStyle={mapStyle}
+                        />
+                    </Suspense>
+                </div>
+            </MapProvider>
+
+            <div className="relative z-10 pointer-events-none h-full w-full">
+                <Suspense>
+                    <Sidebar />
+                </Suspense>
+                <Btns />
+            </div>
+        </main>
+    );
+}
+</file>
+
+<file path="src/components/map-view/side_bar/_components/results/DetailCard.tsx">
+'use client'
+import React, { useCallback, memo } from 'react' // ضفنا useCallback و memo
+import Window from '@/reuseable_components/Window';
+import { StarIcon as StarSolid } from '@heroicons/react/24/solid';
+import { motion } from 'framer-motion';
+import { MapPin, Clock, Copy, X } from 'lucide-react';
+import QuickBtns from './quick_access/QuickBtns';
+import { toast } from 'sonner';
+import Suggestion from '@/reuseable_components/Suggestion';
+
+interface DetailCardProps {
+    location: any;
+    onBack: () => void;
+}
+
+const DetailCardComponent = ({ location, onBack }: DetailCardProps) => {
+
+    const handleCopyAddress = useCallback(() => {
+        if (location?.name) {
+            navigator.clipboard.writeText(window.location.href);
+            toast.success("Link copied to clipboard");
+        }
+    }, [location?.name]);
+
+    return (
+        <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 20 }}
+            className="w-full flex flex-col h-full bg-card"
+        >
+            {/* Header Section */}
+            <div className='w-full flex justify-between items-start mb-4 px-1'>
+                <div className="flex-1 overflow-hidden pr-2">
+                    <h2 className="text-xl md:text-2xl font-black text-foreground tracking-tighter leading-tight italic uppercase truncate">
+                        {location?.name || "Selected Location"}
+                    </h2>
+                    <div className='flex items-center gap-2 mt-1'>
+                        <StarSolid className="size-4 text-amber-500 shrink-0" />
+                        <span className="text-sm font-bold text-foreground">{location?.rating || "0.0"}</span>
+                        <span className="text-[10px] text-muted-foreground font-medium truncate">
+                            • {location?.reviewsCount || 0} reviews
+                        </span>
+                    </div>
+                </div>
+                <button
+                    type='button'
+                    onClick={onBack}
+                    className="p-2 bg-secondary/50 hover:bg-destructive hover:text-white rounded-full transition-all active:scale-90 shrink-0"
+                >
+                    <X className="size-4" />
+                </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto hide-scrollbar space-y-5 pb-6">
+
+                {/* Quick Action Buttons */}
+                <QuickBtns coords={location?.coords} />
+
+                {/* Location Details Window */}
+                <Window title='Location Details' className='p-4 space-y-5'>
+                    <div className="flex items-start gap-4 group/item">
+                        <div className="p-2.5 bg-red-600/10 rounded-xl shrink-0">
+                            <MapPin className="size-5 text-red-600" />
+                        </div>
+                        <div className="flex-1 overflow-hidden">
+                            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.15em] mb-1">Address</p>
+                            <p className="text-sm font-semibold text-foreground/90 leading-snug line-clamp-2">
+                                {location?.name || "Address not available"}
+                            </p>
+                        </div>
+                        <button
+                            type='button'
+                            onClick={handleCopyAddress}
+                            className="opacity-0 group-hover/item:opacity-100 p-2 hover:bg-secondary rounded-lg transition-all shrink-0"
+                        >
+                            <Copy className="size-4 text-muted-foreground" />
+                        </button>
+                    </div>
+
+                    <div className="flex items-start gap-4">
+                        <div className="p-2.5 bg-blue-600/10 rounded-xl shrink-0">
+                            <Clock className="size-5 text-blue-600" />
+                        </div>
+                        <div className="flex-1">
+                            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.15em] mb-1">Business Hours</p>
+                            <div className="flex items-center flex-wrap gap-x-2">
+                                <span className={`text-[11px] font-black px-2 py-0.5 rounded-full ${location?.isOpen ? 'bg-emerald-500/10 text-emerald-600' : 'bg-red-500/10 text-red-600'}`}>
+                                    {location?.isOpen ? 'OPEN' : 'CLOSED'}
+                                </span>
+                                <span className="text-xs text-muted-foreground font-medium italic">
+                                    • {location?.hours || "Check schedule"}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </Window>
+
+                {/* Suggestions Section */}
+                <div className="pt-2">
+                    <Suggestion sliceTo={3} />
+                </div>
+            </div>
+        </motion.div>
+    );
+}
+
+export const DetailCard = memo(DetailCardComponent);
+</file>
+
+<file path="src/components/map-view/side_bar/_components/results/quick_access/QuickBtns.tsx">
+'use client'
+import { CarFront, MoreHorizontal } from 'lucide-react'
+import React, { useState, useCallback, memo } from 'react'
+import Options from './Options'
+import { AnimatePresence } from 'framer-motion'
+
+type Props = {
+    coords: {
+        lat: number;
+        lng: number;
+    }
+}
+
+const QuickBtns = memo(({ coords }: Props) => {
+    const [showOptions, setShowOptions] = useState<boolean>(false)
+
+    const handleShowOptions = useCallback((): void => {
+        setShowOptions(prev => !prev);
+    }, []);
+
+    return (
+        <div className="flex gap-2 w-full relative">
+
+            {/* start btn */}
+            <button
+                type='button'
+                className="flex-1 flex justify-center items-center gap-2 py-3 bg-[#0C79FE] text-white rounded-md hover:brightness-110 active:scale-[0.98] transition-all uppercase text-[11px] font-bold tracking-[2px] shadow-lg shadow-blue-500/20"
+            >
+                <CarFront size={18} strokeWidth={2.5} />
+                <span>Start</span>
+            </button>
+
+            {/* more btn */}
+            <button
+                type='button'
+                onClick={handleShowOptions}
+                aria-label="More options"
+                className={`p-3 rounded-md transition-all flex items-center justify-center active:scale-[0.95] bg-secondary/80 hover:bg-secondary/40 ${showOptions ? 'bg-secondary/100' : ''}`}
+            >
+                <MoreHorizontal size={24} />
+            </button>
+
+            <AnimatePresence>
+                {showOptions && (
+                    <Options
+                        setShowOptions={setShowOptions}
+                        coords={coords}
+                    />
+                )}
+            </AnimatePresence>
+        </div>
+    )
+}, (prevProps, nextProps) => {
+    return (
+        prevProps.coords.lat === nextProps.coords.lat &&
+        prevProps.coords.lng === nextProps.coords.lng
+    );
+});
+
+export default QuickBtns;
+</file>
+
+<file path="src/components/map-view/side_bar/Sidebar.tsx">
+'use client'
+
+import React, { useState, useEffect, useRef, useMemo } from 'react'
+import { motion, useAnimationControls } from 'framer-motion'
+import { useOutsideClick } from '@/hooks/useOutsideClick'
+import { useSearchParams, useRouter } from 'next/navigation'
+import NearbyPlacesView from '@/components/views/NearbyPlacesView'
+import SearchInput from './_components/SearchInput'
+import Results from './_components/results/Results'
+import Recent from './_components/results/categories/Recent'
+import Favorite from './_components/results/categories/Favorite'
+import { cn } from '@/lib/utils'
+
+function Sidebar() {
+    const searchParams = useSearchParams()
+    const router = useRouter()
+    const controls = useAnimationControls()
+    const sidebarRef = useRef<HTMLDivElement>(null);
+    const [activeSlide, setActiveSlide] = useState<boolean>(false)
+
+    const long = searchParams.get('lng')
+    const lat = searchParams.get('lat')
+    const view = searchParams.get('view')
+    const selectedLocation = !!(long && lat)
+
+    const sidebarVariants = {
+        bottom: { y: '82vh' },
+        middle: { y: '50vh' },
+        top: { y: '10vh' }
+    }
+
+    useEffect(() => {
+        if (view || activeSlide) {
+            controls.start('top')
+        } else if (selectedLocation) {
+            controls.start('middle')
+        } else {
+            controls.start('bottom')
+        }
+    }, [selectedLocation, view, activeSlide, controls])
+
+    const handleDragEnd = (event: any, info: any) => {
+        const velocity = info.velocity.y
+        const offset = info.offset.y
+
+        if (velocity < -500 || offset < -150) {
+            setActiveSlide(true)
+            controls.start('top')
+        }
+        else if (velocity > 500 || offset > 150) {
+            if (view) {
+                setActiveSlide(false)
+                controls.start(selectedLocation ? 'middle' : 'bottom')
+            } else {
+                setActiveSlide(false)
+                controls.start(selectedLocation ? 'middle' : 'bottom')
+            }
+        } else {
+            controls.start(activeSlide || view ? 'top' : (selectedLocation ? 'middle' : 'bottom'))
+        }
+    }
+
+    useOutsideClick(sidebarRef, () => {
+        if (selectedLocation || activeSlide || view) {
+            setActiveSlide(false);
+            router.push('/', { scroll: false });
+            controls.start('bottom');
+        }
+    });
+
+    return (
+        <aside className="absolute inset-x-0 bottom-0 md:inset-y-0 md:left-0 md:w-96 md:z-30 z-30 md:p-4 pointer-events-none">
+            <motion.div
+                ref={sidebarRef}
+                drag="y"
+                dragConstraints={{ top: 0, bottom: 0 }}
+                dragElastic={0.05}
+                variants={sidebarVariants}
+                animate={controls}
+                initial="bottom"
+                onDragEnd={handleDragEnd}
+                transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+                className={cn(
+                    "h-[100vh] md:h-full w-full bg-card/95 md:border border-border shadow-2xl rounded-t-[24px] md:rounded-3xl pointer-events-auto md:p-5 p-4 pb-10 flex flex-col md:gap-6 space-y-3 overflow-hidden touch-none",
+                    "transform-gpu will-change-transform",
+                    "md:backdrop-blur-xl"
+                )}
+            >
+                <div className='w-full flex justify-center items-center md:hidden shrink-0 cursor-grab active:cursor-grabbing py-3'>
+                    <div className='w-12 h-1.5 rounded-full bg-muted-foreground/30' />
+                </div>
+
+                <div className="flex-1 flex flex-col overflow-hidden">
+                    {view ? (
+                        <div className="flex-1 overflow-y-auto hide-scrollbar overscroll-contain">
+                            {view === 'favorites' && <Favorite sliceFavorsTo={8} />}
+                            {view === 'nearby_places' && <NearbyPlacesView />}
+                            {view === 'recent' && <Recent sliceRecentTo={8} />}
+                        </div>
+                    ) : (
+                        <div className="flex flex-col h-full overflow-hidden">
+                            {!selectedLocation && <SearchInput />}
+                            <div className="flex-1 overflow-hidden mt-4">
+                                <Results />
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </motion.div>
+        </aside>
+    )
+}
+
+export default Sidebar
+</file>
+
 <file path="src/reuseable_components/Suggestion.tsx">
 'use client'
 import React, { useState, useEffect, useMemo } from 'react'
@@ -2465,140 +2611,6 @@ function Suggestion({ sliceTo, className }: Props) {
 }
 
 export default React.memo(Suggestion);
-</file>
-
-<file path="src/reuseable_components/Title.tsx">
-import React, { ReactNode } from 'react'
-import { useRouter } from 'next/navigation'
-import { ArrowRight } from 'lucide-react'
-
-type Title = {
-    text: string,
-    className?: string,
-    icon?: ReactNode,
-}
-function Title({ text, icon, className = "" }: Title) {
-    const router = useRouter()
-    return (
-        <div className={`w-full flex justify-between items-center mb-3 ${className}`}>
-            <h1 className='text-2xl font-black tracking-tighter'>{text}</h1>
-            <button
-                type='button'
-                onClick={() => router.back()}
-                className='bg-secondary p-2 rounded-full active:scale-90 transition-transform'
-            >
-                <ArrowRight className="size-5" />
-            </button>
-        </div>
-    )
-}
-
-export default React.memo(Title)
-</file>
-
-<file path="src/reuseable_components/Window.tsx">
-import React, { memo } from 'react'
-import H2 from './H2';
-import { useSearchParams } from 'next/navigation';
-
-interface WindowProps {
-    children: React.ReactNode;
-    className?: string;
-    title?: string;
-    dontShowTitleAt?: string;
-    onClick?: () => void;
-}
-
-function Window({ children, onClick, title, dontShowTitleAt, className = "" }: WindowProps) {
-    const searchParams = useSearchParams();
-    const view = searchParams.get('view');
-
-    const shouldShowTitle = title && (!view || view !== dontShowTitleAt);
-
-    return (
-        <>
-            {shouldShowTitle && <H2>{title}</H2>}
-
-            <div
-                onClick={onClick}
-                className={`bg-window w-full min-h-20 rounded-md mb-2 p-2 ${className}`}
-            >
-                {children}
-            </div>
-        </>
-    )
-}
-
-export default memo(Window)
-</file>
-
-<file path="src/app/page.tsx">
-'use client'
-import { useDispatch, useSelector } from "react-redux";
-import { AppDispatch, RootState } from "./store";
-import { useEffect } from "react";
-import Map from "@/components/map-view/main_map/Map";
-import { fetchCloser } from "@/store/details/api/fetchClosestPlacesThunk";
-import { addToRecentSearched } from "@/store/details/detailsSlice";
-
-type Coords = {
-  name?: string
-  lat: number,
-  lng: number
-}
-
-export default function Home() {
-
-  const dispatch = useDispatch<AppDispatch>()
-
-  // get current coords
-  useEffect(() => {
-    const savedCoords: (string | null) = localStorage.getItem('userCoords')
-    let rightType: (Coords | null) = null; // coords or null
-
-    if (savedCoords) {
-      try {
-        rightType = JSON.parse(savedCoords);
-      } catch (e) {
-        console.error("Parse error", e);
-      }
-    }
-
-    if (rightType) {
-      dispatch(fetchCloser(rightType))
-    } else {
-      // get user coords
-      navigator.geolocation.getCurrentPosition(
-        (p) => {
-          const coords = { lat: p.coords.latitude, lng: p.coords.longitude }
-          dispatch(fetchCloser(coords))
-          localStorage.setItem('userCoords', JSON.stringify(coords))
-        },
-        (e) => {
-          console.log(`cant get this location, ${e}`)
-        }
-      )
-    }
-  }, [])
-
-  // get recent
-  useEffect(() => {
-    const recentFromLocalStorage: (string | null) = localStorage.getItem('recent')
-    let recentSearched: (Coords | null) = null
-    if (recentFromLocalStorage) {
-      recentSearched = JSON.parse(recentFromLocalStorage)
-    }
-    if (recentSearched) {
-      dispatch(addToRecentSearched(recentSearched))
-    }
-  }, [])
-
-  return (
-    <>
-      <Map />
-    </>
-  );
-}
 </file>
 
 <file path="package.json">

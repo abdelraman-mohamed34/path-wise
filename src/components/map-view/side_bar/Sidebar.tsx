@@ -1,115 +1,113 @@
 'use client'
 
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { motion, useAnimationControls } from 'framer-motion'
 import { useOutsideClick } from '@/hooks/useOutsideClick'
-import { useSearchParams } from 'next/navigation'
-import { useRouter } from 'next/navigation'
+import { useSearchParams, useRouter } from 'next/navigation'
 import NearbyPlacesView from '@/components/views/NearbyPlacesView'
 import SearchInput from './_components/SearchInput'
 import Results from './_components/results/Results'
 import Recent from './_components/results/categories/Recent'
 import Favorite from './_components/results/categories/Favorite'
+import { cn } from '@/lib/utils'
 
 function Sidebar() {
-
-    const SearchParams = useSearchParams()
-
-    const [activeSlide, setActiveSlide] = useState<boolean>(false)
+    const searchParams = useSearchParams()
+    const router = useRouter()
     const controls = useAnimationControls()
     const sidebarRef = useRef<HTMLDivElement>(null);
-    const router = useRouter()
+    const [activeSlide, setActiveSlide] = useState<boolean>(false)
 
-    // Logic positions for reusability
-    const positions = {
-        bottom: '82vh',
-        middle: '50vh',
-        top: '10vh'
+    const long = searchParams.get('lng')
+    const lat = searchParams.get('lat')
+    const view = searchParams.get('view')
+    const selectedLocation = !!(long && lat)
+
+    const sidebarVariants = {
+        bottom: { y: '82vh' },
+        middle: { y: '50vh' },
+        top: { y: '10vh' }
     }
-
-    const long = SearchParams.get('lng')
-    const lat = SearchParams.get('lat')
-    const view = SearchParams.get('view')
-    const selectedLocation = long && lat
 
     useEffect(() => {
-        if (selectedLocation) {
-            controls.start({ y: positions.middle })
+        if (view || activeSlide) {
+            controls.start('top')
+        } else if (selectedLocation) {
+            controls.start('middle')
         } else {
-            controls.start({ y: positions.bottom })
+            controls.start('bottom')
         }
-    }, [selectedLocation, controls])
+    }, [selectedLocation, view, activeSlide, controls])
 
-    const handleDragEnd = (info: any) => {
-        const offsetThreshold = 100
-        const velocityThreshold = 500
+    const handleDragEnd = (event: any, info: any) => {
+        const velocity = info.velocity.y
+        const offset = info.offset.y
 
-        if (info.offset.y < -offsetThreshold || info.velocity.y < -velocityThreshold) {
+        if (velocity < -500 || offset < -150) {
             setActiveSlide(true)
-            controls.start({ y: positions.top })
+            controls.start('top')
         }
-        else if (info.offset.y > offsetThreshold || info.velocity.y > velocityThreshold) {
-            setActiveSlide(false)
-            controls.start(selectedLocation ? { y: positions.middle } : { y: positions.bottom })
+        else if (velocity > 500 || offset > 150) {
+            if (view) {
+                setActiveSlide(false)
+                controls.start(selectedLocation ? 'middle' : 'bottom')
+            } else {
+                setActiveSlide(false)
+                controls.start(selectedLocation ? 'middle' : 'bottom')
+            }
+        } else {
+            controls.start(activeSlide || view ? 'top' : (selectedLocation ? 'middle' : 'bottom'))
         }
     }
-
-    // Close when clicking outside the sidebarRef
 
     useOutsideClick(sidebarRef, () => {
         if (selectedLocation || activeSlide || view) {
             setActiveSlide(false);
             router.push('/', { scroll: false });
-            controls.start({ y: positions.bottom });
+            controls.start('bottom');
         }
     });
 
-    console.log('sidebar rendered')
-
     return (
-        <>
-            <aside className="absolute inset-x-0 bottom-0 md:inset-y-0 md:left-0 md:w-96 md:z-30 z-30 md:p-4 pointer-events-none">
-                {/* white board */}
-                <motion.div
-                    ref={sidebarRef}
-                    drag="y"
-                    dragConstraints={{ top: 0, bottom: 0 }}
-                    dragElastic={0.1}
-                    animate={controls}
-                    initial={{ y: positions.bottom }}
-                    onDragEnd={handleDragEnd}
-                    className="h-[100vh] md:h-full w-full bg-card backdrop-blur-xl md:border border-border shadow-2xl rounded-t-[24px] md:rounded-3xl pointer-events-auto md:p-5 p-4 pb-10 flex flex-col md:gap-6 md:!transform-none space-y-3 overflow-hidden"
-                    style={{ touchAction: 'none' }}
-                >
+        <aside className="absolute inset-x-0 bottom-0 md:inset-y-0 md:left-0 md:w-96 md:z-30 z-30 md:p-4 pointer-events-none">
+            <motion.div
+                ref={sidebarRef}
+                drag="y"
+                dragConstraints={{ top: 0, bottom: 0 }}
+                dragElastic={0.05}
+                variants={sidebarVariants}
+                animate={controls}
+                initial="bottom"
+                onDragEnd={handleDragEnd}
+                transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+                className={cn(
+                    "h-[100vh] md:h-full w-full bg-card/95 md:border border-border shadow-2xl rounded-t-[24px] md:rounded-3xl pointer-events-auto md:p-5 p-4 pb-10 flex flex-col md:gap-6 space-y-3 overflow-hidden touch-none",
+                    "transform-gpu will-change-transform",
+                    "md:backdrop-blur-xl"
+                )}
+            >
+                <div className='w-full flex justify-center items-center md:hidden shrink-0 cursor-grab active:cursor-grabbing py-3'>
+                    <div className='w-12 h-1.5 rounded-full bg-muted-foreground/30' />
+                </div>
 
-                    {/* drop shadow */}
-                    <div className='w-full flex justify-center items-center md:hidden shrink-0 cursor-grab active:cursor-grabbing'>
-                        <div className='w-12 h-1.5 rounded-full bg-muted-foreground/30' />
-                    </div>
-
+                <div className="flex-1 flex flex-col overflow-hidden">
                     {view ? (
-                        <>
+                        <div className="flex-1 overflow-y-auto hide-scrollbar overscroll-contain">
                             {view === 'favorites' && <Favorite sliceFavorsTo={8} />}
                             {view === 'nearby_places' && <NearbyPlacesView />}
                             {view === 'recent' && <Recent sliceRecentTo={8} />}
-                        </>
+                        </div>
                     ) : (
-                        <div className="flex flex-col">
-                            {/* 1 */}
+                        <div className="flex flex-col h-full overflow-hidden">
                             {!selectedLocation && <SearchInput />}
-
-                            {/* 2 */}
                             <div className="flex-1 overflow-hidden mt-4">
-                                {/* the problem */}
                                 <Results />
                             </div>
-
                         </div>
                     )}
-
-                </motion.div>
-            </aside >
-        </>
+                </div>
+            </motion.div>
+        </aside>
     )
 }
 

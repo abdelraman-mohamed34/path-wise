@@ -50,7 +50,7 @@ export const getLocationDetails = createAsyncThunk<
             }
 
             const placeName = feature.text || feature.place_name?.split(',')[0] || "Unknown Location";
-            const imageUrl = `https://api.maptiler.com/maps/hybrid/static/${coords.lng},${coords.lat},16/500x300.jpg?key=${map_key}`;
+            const imageUrl = `https://api.maptiler.com/maps/hybrid/static/${coords.lng},${coords.lat},16/200x150.jpg?key=${map_key}`;
 
             const idSeed = feature.id ? feature.id.length : 7;
             const stableRating = (3.8 + (idSeed % 12) / 10).toFixed(1);
