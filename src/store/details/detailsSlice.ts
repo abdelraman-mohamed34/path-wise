@@ -54,7 +54,6 @@ export const details = createSlice({
             .addCase(getLocationDetails.pending, (state) => {
                 state.status = 'loading';
                 state.error = null;
-                state.selectedLocation = null;
             })
             .addCase(getLocationDetails.fulfilled, (state, action: PayloadAction<LocationDetail>) => {
                 state.status = 'success';

@@ -1,4 +1,5 @@
 'use client'
+import React, { useCallback, memo } from 'react' // ضفنا useCallback و memo
 import Window from '@/reuseable_components/Window';
 import { StarIcon as StarSolid } from '@heroicons/react/24/solid';
 import { motion } from 'framer-motion';
@@ -12,14 +13,14 @@ interface DetailCardProps {
     onBack: () => void;
 }
 
-export const DetailCard = ({ location, onBack }: DetailCardProps) => {
+const DetailCardComponent = ({ location, onBack }: DetailCardProps) => {
 
-    const handleCopyAddress = () => {
+    const handleCopyAddress = useCallback(() => {
         if (location?.name) {
             navigator.clipboard.writeText(window.location.href);
             toast.success("Link copied to clipboard");
         }
-    }
+    }, [location?.name]);
 
     return (
         <motion.div
@@ -28,6 +29,7 @@ export const DetailCard = ({ location, onBack }: DetailCardProps) => {
             exit={{ opacity: 0, x: 20 }}
             className="w-full flex flex-col h-full bg-card"
         >
+            {/* Header Section */}
             <div className='w-full flex justify-between items-start mb-4 px-1'>
                 <div className="flex-1 overflow-hidden pr-2">
                     <h2 className="text-xl md:text-2xl font-black text-foreground tracking-tighter leading-tight italic uppercase truncate">
@@ -52,11 +54,11 @@ export const DetailCard = ({ location, onBack }: DetailCardProps) => {
 
             <div className="flex-1 overflow-y-auto hide-scrollbar space-y-5 pb-6">
 
+                {/* Quick Action Buttons */}
                 <QuickBtns coords={location?.coords} />
 
-                {/* Detailed Info List */}
+                {/* Location Details Window */}
                 <Window title='Location Details' className='p-4 space-y-5'>
-                    {/* Address section */}
                     <div className="flex items-start gap-4 group/item">
                         <div className="p-2.5 bg-red-600/10 rounded-xl shrink-0">
                             <MapPin className="size-5 text-red-600" />
@@ -76,7 +78,6 @@ export const DetailCard = ({ location, onBack }: DetailCardProps) => {
                         </button>
                     </div>
 
-                    {/* Status / Hours */}
                     <div className="flex items-start gap-4">
                         <div className="p-2.5 bg-blue-600/10 rounded-xl shrink-0">
                             <Clock className="size-5 text-blue-600" />
@@ -95,6 +96,7 @@ export const DetailCard = ({ location, onBack }: DetailCardProps) => {
                     </div>
                 </Window>
 
+                {/* Suggestions Section */}
                 <div className="pt-2">
                     <Suggestion sliceTo={3} />
                 </div>
@@ -102,3 +104,5 @@ export const DetailCard = ({ location, onBack }: DetailCardProps) => {
         </motion.div>
     );
 }
+
+export const DetailCard = memo(DetailCardComponent);

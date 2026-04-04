@@ -109,6 +109,7 @@ src/reuseable_components/Window.tsx
 src/store/details/api/fetchClosestPlacesThunk.ts
 src/store/details/api/fetchLocationDetails.ts
 src/store/details/detailsSlice.ts
+src/store/global_data/dataSlice.ts
 src/store/lang/languageSlice.ts
 src/store/location/locationSlice.ts
 src/store/theme/themeSlice.ts
@@ -168,40 +169,6 @@ next-env.d.ts
 
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
 <!-- END:nextjs-agent-rules -->
-</file>
-
-<file path="CLAUDE.md">
-# Project: Maps & Locations App
-
-## Tech Stack
-- **Framework**: Next.js 14+ (App Router)
-- **Language**: TypeScript (TSX)
-- **Styling**: Tailwind CSS (Utility-first)
-- **State Management**: Redux Toolkit (AppDispatch/RootState)
-- **Animations**: Framer Motion
-- **Maps**: React Map GL (Maplibre)
-
-## Coding Standards
-- Use **Functional Components** with `memo` for UI performance.
-- Preference for **Lucide React** for icons.
-- Use `shadcn/ui` patterns or custom glassmorphism components.
-- Always use **Lucide icons** for map-related actions.
-- Use `use client` directive only when necessary (interactive components).
-
-## Naming Conventions
-- Components: PascalCase (e.g., `MapComponent.tsx`)
-- Hooks: camelCase (e.g., `useFavorites.ts`)
-- Redux Slices: camelCase (e.g., `detailsSlice.ts`)
-
-## Common Commands
-- Build: `npm run build`
-- Dev: `npm run dev`
-- Lint: `npm run lint`
-
-## Specific Rules
-- Coordinate precision: Use `Math.abs(diff) > 0.0001` for map comparisons.
-- Storage: Use `localStorage` for `favorites` and `recent_searches` (max 8 items).
-- UI: Maintain a "Glassmorphism" theme using `bg-window/80` and `backdrop-blur`.
 </file>
 
 <file path="components.json">
@@ -375,900 +342,6 @@ export default function Providers({ children }: { children: React.ReactNode }) {
         </Provider>
     );
 }
-</file>
-
-<file path="src/components/map-view/main_map/Map.tsx">
-"use client";
-import { useCallback, useState, useMemo, Suspense } from "react";
-import { MapProvider } from "react-map-gl/maplibre";
-import "maplibre-gl/dist/maplibre-gl.css";
-import { useSelector } from "react-redux";
-import { RootState } from "@/app/store";
-import maplibregl from 'maplibre-gl';
-import MapComponent from "./MapComponent";
-import Sidebar from "../side_bar/Sidebar";
-import Btns from "../Btns";
-
-if (typeof window !== "undefined" && maplibregl.getRTLTextPluginStatus() === 'unavailable') {
-    maplibregl.setRTLTextPlugin('https://unpkg.com/@mapbox/mapbox-gl-rtl-text@0.2.3/mapbox-gl-rtl-text.min.js', true);
-}
-
-export default function Map() {
-    const mode = useSelector((state: RootState) => state.theme.mode);
-    const map_key = process.env.NEXT_PUBLIC_MAP_KEY;
-
-    const mapStyle = useMemo(() => (
-        mode === 'dark'
-            ? `https://api.maptiler.com/maps/streets-v2-dark/style.json?key=${map_key}`
-            : `https://api.maptiler.com/maps/streets-v2/style.json?key=${map_key}`
-    ), [mode, map_key]);
-
-    return (
-        <main className="relative h-[100dvh] w-full overflow-hidden bg-background">
-            <MapProvider>
-                <div className="absolute inset-0 z-0">
-                    <Suspense>
-                        <MapComponent
-                            mapStyle={mapStyle}
-                        />
-                    </Suspense>
-                </div>
-
-                <div className="relative z-10 pointer-events-none h-full w-full">
-                    <Suspense>
-                        <Sidebar />
-                    </Suspense>
-                    <Btns />
-                </div>
-            </MapProvider>
-        </main>
-    );
-}
-</file>
-
-<file path="src/components/map-view/main_map/MapComponent.tsx">
-"use client";
-import MapGL, { Marker, useMap } from "react-map-gl/maplibre";
-import React, { memo, useEffect, useCallback, useState } from "react";
-import { useDispatch } from "react-redux";
-import { AppDispatch } from "@/app/store";
-import { getLocationDetails } from "@/store/details/api/fetchLocationDetails";
-import { useRouter, useSearchParams } from "next/navigation";
-import { useRecentSearches } from "@/hooks/useAddToRecent";
-
-interface MapComponentProps {
-    mapStyle: string;
-}
-
-const MapComponent = memo(({ mapStyle }: MapComponentProps) => {
-
-    const [viewState, setViewState] = useState({
-        longitude: 31.2357,
-        latitude: 30.0444,
-        zoom: 10
-    });
-
-    const dispatch = useDispatch<AppDispatch>();
-    const searchParams = useSearchParams();
-
-    const router = useRouter();
-    const { "main-map": map } = useMap();
-
-    const URLLat = searchParams.get('lat');
-    const URLLng = searchParams.get('lng');
-    const isLocationMine = searchParams.get('m');
-
-    const latitude = URLLat ? parseFloat(URLLat) : null;
-    const longitude = URLLng ? parseFloat(URLLng) : null;
-    const { addToRecent } = useRecentSearches()
-
-    // if has URL
-    useEffect(() => {
-        if (latitude && longitude) {
-            const coords = { latitude, longitude };
-
-            const isDifferent =
-                Math.abs(viewState.latitude - latitude) > 0.0001 ||
-                Math.abs(viewState.longitude - longitude) > 0.0001;
-
-            if (isDifferent) {
-                setViewState({ ...coords, zoom: 16 })
-                dispatch(getLocationDetails({ lat: latitude, lng: longitude }));
-                // Fly to location
-                if (map) {
-                    map.flyTo({
-                        center: [longitude, latitude],
-                        zoom: 16,
-                        duration: 2000,
-                        essential: true,
-                        padding: { bottom: 200 }
-                    });
-                    addToRecent({ lat: latitude, lng: longitude })
-                }
-            }
-        }
-    }, [latitude, longitude, dispatch]);
-
-
-    const handleMove = useCallback((e: any) => {
-        setViewState(e.viewState);
-    }, []);
-
-    const handleMapClick = useCallback((e: any) => {
-        const { lng, lat } = e.lngLat;
-        router.push(`?lat=${lat}&lng=${lng}`, { scroll: false });
-    }, [router]);
-
-    return (
-        <MapGL
-            {...viewState}
-            id="main-map"
-            onMove={handleMove}
-            onClick={handleMapClick}
-            mapStyle={mapStyle}
-            style={{ width: "100%", height: "100%" }}
-        >
-            {latitude && longitude && (
-                <Marker latitude={latitude} longitude={longitude} anchor="bottom">
-                    {isLocationMine === 'true' ? (
-                        <div className="relative flex items-center justify-center">
-                            <span className="absolute size-10 bg-blue-500/30 rounded-full animate-ping" />
-                            <span className="size-5 bg-blue-600 border-[3px] border-white rounded-full shadow-lg" />
-                        </div>
-                    ) : (
-                        <div className="flex flex-col items-center group cursor-pointer">
-                            <div className="relative flex items-center justify-center size-9 bg-red-600 rounded-full shadow-xl border-2 border-white group-hover:scale-110 transition-transform duration-300">
-                                <div className="size-2.5 bg-white rounded-full animate-pulse" />
-                            </div>
-                            <div className="w-0 h-0 border-l-[7px] border-l-transparent border-r-[7px] border-r-transparent border-t-[10px] border-t-destructive -mt-[2px] shadow-sm" />
-                        </div>
-                    )}
-                </Marker>
-            )}
-        </MapGL>
-    );
-});
-
-MapComponent.displayName = "MapComponent";
-export default MapComponent;
-</file>
-
-<file path="src/components/map-view/side_bar/_components/results/categories/Favorite.tsx">
-'use client'
-
-import { useFavorites } from '@/hooks/useAddToFavors'
-import H2 from '@/reuseable_components/H2'
-import Suggestion from '@/reuseable_components/Suggestion'
-import Window from '@/reuseable_components/Window'
-import { useRouter, useSearchParams } from 'next/navigation'
-
-function Favorite({ sliceFavorsTo }: { sliceFavorsTo: number }) {
-
-    const { favors } = useFavorites()
-
-    const router = useRouter()
-
-    const goToLocation = (lat: number, lng: number): void => {
-        router.push(`?lat=${lat}&lng=${lng}`)
-    }
-
-    const showAllFavors = (): void => {
-        router.push('?view=favorites')
-    }
-
-    const searchParams = useSearchParams()
-    const view = searchParams.get('view')
-
-    return (
-        <div className="w-full">
-            <div className='w-full flex justify-between'>
-                <H2>Favorites</H2>
-                {!(view || view === 'recent') && favors.length > 0 && (
-                    <button type='button' onClick={showAllFavors} className="group flex items-center gap-1 text-[#0C79FE] hover:underline hover:underline-offset-4 transition-all md:text-[15px] text-[12px]">
-                        <span>see all</span>
-                    </button>
-                )}
-            </div>
-
-            <Window className='p-2 mb-5 flex justify-center items-center'>
-                <div className="flex flex-col gap-2 w-full">
-                    {favors && favors.length > 0 ? (
-                        favors.slice(0, sliceFavorsTo).map((item) => (
-                            <div
-                                key={`${item.lat}-${item.lng}`}
-                                onClick={() => goToLocation(item.lat, item.lng)}
-                                className='flex items-center gap-3 p-2 hover:bg-secondary/20 active:scale-[0.98] transition-all cursor-pointer border-b border-border/40 last:border-0'
-                            >
-                                <div className='size-8 shrink-0 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-bold'>
-                                    {item.name?.charAt(0) || 'L'}
-                                </div>
-
-                                <div className="flex flex-col overflow-hidden">
-                                    <h1 className='text-sm font-medium truncate text-foreground'>
-                                        {item.name || "Unknown Location"}
-                                    </h1>
-                                    <span className='text-[10px] text-muted-foreground'>
-                                        {item.lat.toFixed(4)}, {item.lng.toFixed(4)}
-                                    </span>
-                                </div>
-                            </div>
-                        ))
-                    ) : (
-                        <div className="flex justify-center items-center w-full h-full">
-                            <h1 className="md:text-xs text-[10px] text-muted-foreground uppercase tracking-widest">No Favorites yet</h1>
-                        </div>
-                    )}
-                </div>
-            </Window>
-
-            {(view || view === 'recent') && (<Suggestion sliceTo={3} />)}
-        </div >
-    )
-}
-
-export default Favorite
-</file>
-
-<file path="src/components/map-view/side_bar/_components/results/categories/MyCategory.tsx">
-'use client'
-import Favorite from './Favorite'
-import Recent from './Recent'
-import Suggestion from '@/reuseable_components/Suggestion'
-
-function MyCategory() {
-    return (
-        <div className='w-full h-[calc(100vh-180px)] overflow-y-auto space-y-6 px-1 hide-scrollbar pb-10'>
-
-            <Favorite sliceFavorsTo={2} />
-            <Recent sliceRecentTo={2} />
-            <Suggestion sliceTo={3} />
-
-        </div>
-    )
-}
-
-export default MyCategory
-</file>
-
-<file path="src/components/map-view/side_bar/_components/results/categories/Recent.tsx">
-'use client'
-import { useRecentSearches } from '@/hooks/useAddToRecent'
-import H2 from '@/reuseable_components/H2'
-import Suggestion from '@/reuseable_components/Suggestion'
-import Window from '@/reuseable_components/Window'
-import { useRouter, useSearchParams } from 'next/navigation'
-
-function Recent({ sliceRecentTo }: { sliceRecentTo: number }) {
-    const { recent } = useRecentSearches()
-    const router = useRouter()
-
-    const goToLocation = (lat: number, lng: number): void => {
-        router.push(`?lat=${lat}&lng=${lng}`)
-    }
-
-    const showAllRecent = (): void => {
-        router.push('?view=recent')
-    }
-    const searchParams = useSearchParams()
-    const view = searchParams.get('view')
-
-    return (
-        <div className="w-full">
-            <div className='w-full flex justify-between'>
-                <H2>Recent</H2>
-                {!(view || view === 'recent') && recent.length > 0 && (
-                    <button type='button' onClick={showAllRecent} className="group flex items-center gap-1 text-[#0C79FE] hover:underline hover:underline-offset-4 transition-all md:text-[15px] text-[12px]">
-                        <span>see all</span>
-                    </button>
-                )}
-            </div>
-
-            <Window className='p-2 mb-5 flex justify-center items-center'>
-                <div className="flex flex-col gap-2 w-full">
-                    {recent && recent.length > 0 ? (
-                        recent.slice(0, sliceRecentTo).map((item) => (
-                            <div
-                                key={`${item.lat}-${item.lng}`}
-                                onClick={() => goToLocation(item.lat, item.lng)}
-                                className='flex items-center gap-3 p-2 hover:bg-secondary/20 active:scale-[0.98] transition-all cursor-pointer border-b border-border/40 last:border-0'
-                            >
-                                <div className='size-8 shrink-0 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-bold'>
-                                    {item.name?.charAt(0) || 'L'}
-                                </div>
-
-                                <div className="flex flex-col overflow-hidden">
-                                    <h1 className='text-sm font-medium truncate text-foreground'>
-                                        {item.name || "Unknown Location"}
-                                    </h1>
-                                    <span className='text-[10px] text-muted-foreground'>
-                                        {item.lat.toFixed(4)}, {item.lng.toFixed(4)}
-                                    </span>
-                                </div>
-                            </div>
-                        ))
-                    ) : (
-                        <div className="flex justify-center items-center w-full h-full">
-                            <h1 className="md:text-xs text-[10px] text-muted-foreground uppercase tracking-widest">No recent searches</h1>
-                        </div>
-                    )}
-                </div>
-            </Window>
-
-            {(view || view === 'recent') && (<Suggestion sliceTo={3} />)}
-        </div >
-    )
-}
-
-export default Recent
-</file>
-
-<file path="src/components/map-view/side_bar/_components/results/DetailCard.tsx">
-'use client'
-import Window from '@/reuseable_components/Window';
-import { StarIcon as StarSolid } from '@heroicons/react/24/solid';
-import { motion } from 'framer-motion';
-import { MapPin, Clock, Copy } from 'lucide-react';
-import QuickBtns from './quick_access/QuickBtns';
-import { toast } from 'sonner';
-import { useSearchParams } from 'next/navigation';
-
-interface DetailCardProps {
-    location: any;
-    onBack: () => void;
-}
-
-export const DetailCard = ({ location, onBack }: DetailCardProps) => {
-
-
-    const handleCopyAddress = () => {
-        if (location?.name) {
-            navigator.clipboard.writeText(window.location.href);
-            toast.success("Address copied to clipboard");
-        }
-    }
-
-    return (
-        <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 20 }}
-            className="w-full bg-card py-2"
-        >
-            {/* Header: Name and Back Button */}
-            <div className='w-full flex justify-between items-start mb-6'>
-                <div className="flex-1 pr-4">
-                    <h2 className="text-2xl font-black text-foreground tracking-tighter leading-tight italic uppercase">
-                        {location?.shortName || "Selected Location"}
-                    </h2>
-                    <div className='flex items-center gap-2 mt-1'>
-                        <StarSolid className="size-4 text-amber-500" />
-                        <span className="text-sm font-bold text-foreground">{location?.rating || "0.0"}</span>
-                        <span className="text-[10px] text-muted-foreground font-medium">
-                            • {location?.reviewsCount || 0} reviews
-                        </span>
-                    </div>
-                </div>
-                <button
-                    type='button'
-                    onClick={onBack}
-                    className="p-2 bg-secondary/50 hover:bg-destructive hover:text-white rounded-full transition-all active:scale-90 group"
-                >
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor" className="size-4">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                </button>
-            </div>
-
-            <div className="space-y-4">
-
-                {/* Quick Action Buttons */}
-                <QuickBtns coords={location.coords} />
-
-                {/* Detailed Info List */}
-                <Window title='Location Details' className='p-4 space-y-5'>
-                    {/* Address with Copy Option */}
-                    <div className="flex items-start gap-4 group/item">
-                        <div className="p-2 bg-red-600 rounded-full">
-                            <MapPin className="size-5 white" />
-                        </div>
-                        <div className="flex-1">
-                            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.15em] mb-1">Address</p>
-                            <p className="text-sm font-semibold text-foreground/90 leading-relaxed max-w-[200px]">
-                                {location?.name || "Address not available"}
-                            </p>
-                        </div>
-                        <button
-                            type='button'
-                            onClick={handleCopyAddress}
-                            className="opacity-0 group-hover/item:opacity-100 p-2 hover:bg-secondary rounded-lg transition-all"
-                        >
-                            <Copy className="size-4 text-muted-foreground" />
-                        </button>
-                    </div>
-
-                    {/* Status / Hours */}
-                    <div className="flex items-start gap-4">
-                        <div className="p-2 bg-blue-6w-full h-full object-cover00 rounded-full">
-                            <Clock className="size-5 text-white" />
-                        </div>
-                        <div>
-                            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.15em] mb-1">Business Hours</p>
-                            <div className="flex items-center gap-2">
-                                <span className={`text-xs font-bold pr-1 rounded-full ${location?.isOpen ? 'text-emerald-600' : 'text-red-600'}`}>
-                                    {location?.isOpen ? 'OPEN' : 'CLOSED'}
-                                </span>
-                                <span className="text-xs text-muted-foreground font-medium italic">
-                                    • {location?.hours || "Check schedule"}
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-                </Window>
-            </div>
-        </motion.div>
-    );
-}
-</file>
-
-<file path="src/components/map-view/side_bar/_components/results/LocationCard.tsx">
-import { MapPinIcon, ChevronRightIcon } from '@heroicons/react/24/outline'
-
-interface LocationCardProps {
-    item: any;
-    onClick: (coords: { lat: number; lng: number }) => void;
-}
-
-export const LocationCard = ({ item, onClick }: LocationCardProps) => (
-    <button
-        type='button'
-        onClick={() => onClick(item.coords)}
-        className="w-full group relative flex items-center gap-4 p-4 bg-card/40 backdrop-blur-sm rounded-2xl border border-border/50 hover:border-primary/40 hover:bg-secondary/40 transition-all duration-300 text-left shadow-sm overflow-hidden"
-    >
-        <div className="flex-shrink-0 flex items-center justify-center size-10 rounded-xl bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-all duration-300">
-            <MapPinIcon className="size-5" />
-        </div>
-        <div className="flex-1 min-w-0 z-10">
-            <h3 className="font-bold text-sm text-foreground group-hover:text-primary transition-colors truncate">
-                {item.name}
-            </h3>
-            <p className="text-[10px] font-mono text-muted-foreground/80 mt-0.5">
-                {item.coords.lat.toFixed(4)}° N, {item.coords.lng.toFixed(4)}° E
-            </p>
-        </div>
-        <ChevronRightIcon className="size-4 text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all" />
-    </button>
-);
-</file>
-
-<file path="src/components/map-view/side_bar/_components/results/quick_access/Options.tsx">
-'use client'
-import React from 'react'
-import { motion } from 'framer-motion'
-import { Share2, Bookmark, Navigation2 } from 'lucide-react'
-import { useFavorites } from '@/hooks/useAddToFavors'
-import { toast } from 'sonner'
-
-type Coords = {
-    lat: number;
-    lng: number;
-};
-
-type OptionsProps = {
-    setShowOptions: (val: boolean) => void,
-    coords: Coords
-}
-
-type MenuItem = {
-    icon: React.ReactNode;
-    label: string;
-    color: string;
-    action: () => void;
-    message?: string;
-};
-
-function Options({ setShowOptions, coords }: OptionsProps) {
-    const { addToFavors } = useFavorites()
-
-    const handleShare = async () => {
-        try {
-            const fullUrl = window.location.href;
-            await navigator.clipboard.writeText(fullUrl);
-            toast.success("URL copied");
-        } catch (error) {
-            toast.error("Failed to copy link");
-        }
-    };
-
-    const menuItems: MenuItem[] = React.useMemo(() => [
-        {
-            icon: <Navigation2 size={16} />,
-            label: 'Directions',
-            color: 'text-blue-500',
-            action: () => window.open(
-                `https://www.google.com/maps?q=${coords.lat},${coords.lng}`,
-                '_blank',
-                'noopener,noreferrer'
-            ),
-            message: 'Opening Google Maps...'
-        },
-        {
-            icon: <Bookmark size={16} />,
-            label: 'Save Place',
-            color: 'text-yellow-500',
-            action: () => addToFavors(coords),
-            message: 'Added to your favorites!'
-        },
-        {
-            icon: <Share2 size={16} />,
-            label: 'Share',
-            color: 'text-green-500',
-            action: handleShare,
-        }
-    ], [coords, addToFavors])
-
-    const handleClick = (item: MenuItem) => {
-        const doHandle = async () => {
-
-            setShowOptions(false);
-
-            await item.action();
-
-            if (item.message) {
-                toast.success(item.message);
-            }
-        }
-        doHandle()
-    }
-
-    return (
-        <motion.div
-            initial={{ opacity: 0, scale: 0.9, y: 10 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.9, y: 10 }}
-            className="absolute top-16 right-0 w-48 bg-window border border-border/50 rounded-2xl shadow-2xl overflow-hidden z-50 backdrop-blur-md"
-        >
-            <div className="flex flex-col p-1">
-                {menuItems.map((item) => (
-                    <button
-                        type="button"
-                        key={item.label}
-                        onClick={() => handleClick(item)}
-                        className="flex items-center gap-2 w-full p-3 hover:bg-secondary/50 transition-colors rounded-xl group"
-                    >
-                        <div className={`${item.color} group-hover:scale-110 transition-transform`}>
-                            {item.icon}
-                        </div>
-                        <span className="text-sm font-medium text-foreground/80 group-hover:text-foreground">
-                            {item.label}
-                        </span>
-                    </button>
-                ))}
-            </div>
-        </motion.div >
-    )
-}
-
-export default Options
-</file>
-
-<file path="src/components/map-view/side_bar/_components/results/quick_access/QuickBtns.tsx">
-import { CarFront, MoreHorizontal } from 'lucide-react'
-import React, { useState } from 'react'
-import Options from './Options'
-import { AnimatePresence } from 'framer-motion'
-
-type Props = {
-    coords: {
-        lat: number;
-        lng: number;
-    }
-}
-
-function QuickBtns({ coords }: Props) {
-    const [showOptions, setShowOptions] = useState<boolean>(false)
-
-    const handleShowOptions = (): void => {
-        setShowOptions(prev => !prev)
-    }
-
-    return (
-        <div className="flex gap-2 w-full relative">
-
-            {/* start */}
-            <button type='button' className="flex-1 flex justify-center items-center gap-2 py-3 bg-[#0C79FE] text-white rounded-md hover:brightness-110 active:scale-[0.98] transition-all uppercase text-[11px] font-bold tracking-[2px] shadow-lg shadow-blue-500/20">
-                <CarFront size={18} strokeWidth={2.5} />
-                <span>Start</span>
-            </button>
-
-            {/* more */}
-            <button
-                type='button'
-                onClick={handleShowOptions}
-                aria-label="More options"
-                className={`p-3 rounded-md transition-all flex items-center justify-center active:scale-[0.95] bg-secondary/80 hover:bg-secondary/40`}
-            >
-                <MoreHorizontal size={24} />
-            </button>
-
-            <AnimatePresence>
-                {showOptions && (
-                    <Options
-                        setShowOptions={setShowOptions}
-                        coords={coords}
-                    />
-                )}
-            </AnimatePresence>
-        </div>
-    )
-}
-
-export default QuickBtns
-</file>
-
-<file path="src/components/map-view/side_bar/_components/results/Results.tsx">
-'use client'
-import { useSelector, useDispatch } from 'react-redux'
-import { RootState, AppDispatch } from '@/app/store'
-import { clearDetails } from '@/store/details/detailsSlice'
-import { MapPinIcon } from '@heroicons/react/24/outline'
-import { useRouter, useSearchParams } from 'next/navigation'
-import { useEffect, memo } from 'react'
-
-// components
-import { DetailCard } from './DetailCard'
-import { LocationCard } from './LocationCard'
-import MyCategory from './categories/MyCategory'
-import Suggestion from '@/reuseable_components/Suggestion'
-
-interface ResultsProps {
-    searchTerm: string;
-    setSearchTerm: (value: string) => void;
-}
-
-function Results({ searchTerm, setSearchTerm }: ResultsProps) {
-    const dispatch = useDispatch<AppDispatch>()
-    const { results, status } = useSelector((state: RootState) => state.location);
-    const { selectedLocation, status: detailsStatus } = useSelector((state: RootState) => state.details);
-
-    const router = useRouter()
-    const searchParams = useSearchParams()
-
-    const lng = searchParams.get('lng')
-    const lat = searchParams.get('lat')
-    const hasParams = Boolean(lng && lat)
-
-    useEffect(() => {
-        if (!hasParams) {
-            dispatch(clearDetails())
-        }
-    }, [hasParams, dispatch])
-
-    const onBackFunction = () => {
-        router.push('/', { scroll: false })
-    }
-
-    const handleGetLocationDetails = (coords: { lat: number; lng: number }) => {
-        router.push(`?lat=${coords.lat}&lng=${coords.lng}`, { scroll: false });
-        setSearchTerm('')
-    };
-
-    const renderSkeleton = () => (
-        <div className="space-y-4 px-2">
-            {[1, 2, 3].map((i) => (
-                <div key={i} className="p-4 bg-secondary/20 rounded-2xl border border-border/50 animate-pulse flex gap-4">
-                    <div className="size-10 bg-muted rounded-xl" />
-                    <div className="flex-1 space-y-2">
-                        <div className="h-4 w-1/2 bg-muted rounded" />
-                        <div className="h-3 w-1/3 bg-muted rounded" />
-                    </div>
-                </div>
-            ))}
-        </div>
-    );
-
-    if (status === 'loading' || detailsStatus === 'loading') return renderSkeleton()
-
-    return (
-        <div className="flex-1 overflow-y-auto custom-scrollbar">
-
-            {searchTerm.trim() !== "" ? (
-                <>
-                    {results && results.length > 0 ? (
-                        <div className="space-y-3 animate-in fade-in duration-500">
-                            {results.map((item: any) => (
-                                <LocationCard key={item.id} item={item} onClick={handleGetLocationDetails} />
-                            ))}
-                        </div>
-                    ) : (
-                        status === 'success' && (
-                            <div className="text-center py-10 text-destructive text-sm font-medium">No results found.</div>
-                        )
-                    )}
-                </>
-            ) : (
-                <>
-                    {selectedLocation ? (
-                        <div className='space-y-3'>
-                            <DetailCard location={selectedLocation} onBack={onBackFunction} />
-                            <Suggestion sliceTo={3} />
-                        </div>
-                    ) : (
-                        status === 'idle' && (
-                            <MyCategory />
-                        )
-                    )}
-                </>
-            )}
-        </div>
-    );
-}
-
-export default memo(Results);
-</file>
-
-<file path="src/components/map-view/side_bar/_components/SearchInput.tsx">
-'use client'
-import { AppDispatch } from '@/app/store';
-import useDebounce from '@/hooks/useDebounce';
-import { searchLocation } from '@/store/location/locationSlice';
-import { MagnifyingGlassIcon } from '@heroicons/react/24/outline';
-import React, { useEffect, useState } from 'react'
-import { useDispatch } from 'react-redux';
-
-interface ResultsProps {
-    searchTerm: string;
-    setSearchTerm: (value: string) => void;
-}
-
-function SearchInput({ searchTerm, setSearchTerm }: ResultsProps) {
-
-    const dispatch = useDispatch<AppDispatch>()
-
-    const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setSearchTerm(e.target.value)
-    }
-
-    const debouncedSearch = useDebounce(searchTerm, 300);
-    useEffect(() => {
-        if (!debouncedSearch || !searchTerm || debouncedSearch.length < 2) return
-        dispatch(searchLocation(debouncedSearch))
-    }, [debouncedSearch, dispatch])
-
-    console.log('SearchInput.tsx rendered')
-
-    return (
-        <div className="relative group mb-3">
-            <MagnifyingGlassIcon className="absolute md:left-4 left-[10px] top-1/2 -translate-y-1/2 md:size-5 size-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
-            <input
-                type="text"
-                placeholder="Search for a place..."
-                value={searchTerm}
-                onChange={handleSearch}
-                className="md:text-xd text-[13px] w-full h-[36px] md:pl-10 pl-8 pr-4 bg-secondary rounded-[8px] focus:outline-none focus:ring-1 focus:ring-primary/20 transition-all"
-            />
-        </div>
-    )
-}
-
-export default SearchInput
-</file>
-
-<file path="src/components/map-view/side_bar/Sidebar.tsx">
-'use client'
-import React, { useState, useEffect, useRef } from 'react'
-import { useDispatch, useSelector } from 'react-redux'
-import { RootState } from '@/app/store'
-import { motion, AnimatePresence, useAnimationControls } from 'framer-motion'
-import { useOutsideClick } from '@/hooks/useOutsideClick'
-import { useSearchParams } from 'next/navigation'
-import { useRouter } from 'next/navigation'
-import NearbyPlacesView from '@/components/views/NearbyPlacesView'
-import SearchInput from './_components/SearchInput'
-import Results from './_components/results/Results'
-import Recent from './_components/results/categories/Recent'
-import Favorite from './_components/results/categories/Favorite'
-
-function Sidebar() {
-
-    const SearchParams = useSearchParams()
-
-    const [searchTerm, setSearchTerm] = useState<string>("")
-    const [activeSlide, setActiveSlide] = useState<boolean>(false)
-    const controls = useAnimationControls()
-    const sidebarRef = useRef<HTMLDivElement>(null);
-    const router = useRouter()
-
-    // Logic positions for reusability
-    const positions = {
-        bottom: '82vh',
-        middle: '50vh',
-        top: '10vh'
-    }
-
-    const long = SearchParams.get('lng')
-    const lat = SearchParams.get('lat')
-    const view = SearchParams.get('view')
-    const selectedLocation = long && lat
-
-    useEffect(() => {
-        if (selectedLocation) {
-            controls.start({ y: positions.middle })
-        } else {
-            controls.start({ y: positions.bottom })
-        }
-    }, [selectedLocation, controls])
-
-    const handleDragEnd = (event: any, info: any) => {
-        const offsetThreshold = 100
-        const velocityThreshold = 500
-
-        if (info.offset.y < -offsetThreshold || info.velocity.y < -velocityThreshold) {
-            setActiveSlide(true)
-            controls.start({ y: positions.top })
-        }
-        else if (info.offset.y > offsetThreshold || info.velocity.y > velocityThreshold) {
-            setActiveSlide(false)
-            controls.start(selectedLocation ? { y: positions.middle } : { y: positions.bottom })
-        }
-    }
-
-    // Close when clicking outside the sidebarRef
-
-    useOutsideClick(sidebarRef, () => {
-        if (selectedLocation || activeSlide || view) {
-            setActiveSlide(false);
-            router.push('/', { scroll: false });
-            controls.start({ y: positions.bottom });
-        }
-    });
-
-    return (
-        <>
-            <aside className="absolute inset-x-0 bottom-0 md:inset-y-0 md:left-0 md:w-96 md:z-30 z-30 md:p-4 pointer-events-none">
-                {/* white board */}
-                <motion.div
-                    ref={sidebarRef}
-                    drag="y"
-                    dragConstraints={{ top: 0, bottom: 0 }}
-                    dragElastic={0.1}
-                    animate={controls}
-                    initial={{ y: positions.bottom }}
-                    onDragEnd={handleDragEnd}
-                    className="h-[100vh] md:h-full w-full bg-card backdrop-blur-xl md:border border-border shadow-2xl rounded-t-[24px] md:rounded-3xl pointer-events-auto md:p-5 p-4 pb-10 flex flex-col md:gap-6 md:!transform-none space-y-3"
-                    style={{ touchAction: 'none' }}
-                >
-
-                    {/* drop shadow */}
-                    <div className='w-full flex justify-center items-center md:hidden shrink-0 cursor-grab active:cursor-grabbing'>
-                        <div className='w-12 h-1.5 rounded-full bg-muted-foreground/30' />
-                    </div>
-
-                    {view ? (
-                        <>
-                            {view === 'favorites' && <Favorite sliceFavorsTo={8} />}
-                            {view === 'nearby_places' && <NearbyPlacesView />}
-                            {view === 'recent' && <Recent sliceRecentTo={8} />}
-                        </>
-                    ) : (
-                        <div className="flex flex-col">
-                            {/* 1 */}
-                            {!selectedLocation && <SearchInput searchTerm={searchTerm} setSearchTerm={setSearchTerm} />}
-
-                            {/* 2 */}
-                            <div className="flex-1 overflow-hidden mt-4">
-                                <Results searchTerm={searchTerm} setSearchTerm={setSearchTerm} />
-                            </div>
-
-                        </div>
-                    )}
-
-                </motion.div>
-            </aside >
-        </>
-    )
-}
-
-export default React.memo(Sidebar)
 </file>
 
 <file path="src/components/Slider.tsx">
@@ -1511,168 +584,6 @@ export {
 }
 </file>
 
-<file path="src/components/views/NearbyPlacesView.tsx">
-'use client'
-
-import { RootState } from '@/app/store'
-import { useSelector } from 'react-redux'
-import Container from '@/reuseable_components/Container'
-import Suggestion from '@/reuseable_components/Suggestion'
-import Title from '@/reuseable_components/Title'
-
-function NearbyPlacesView() {
-
-    const { nearbyLoading } = useSelector((state: RootState) => state.details)
-
-    return (
-        <Container>
-            {/* Header */}
-            <Title text='Nearby places' />
-
-            <div className='w-full space-y-8'>
-                {/* places  */}
-                <section className='w-full overflow-y-auto'>
-                    <div className='flex flex-col rounded-md overflow-y-auto'>
-                        {nearbyLoading ? (
-                            [1, 2, 3, 4].map(i => (
-                                <div key={i} className='w-full h-20 bg-gray-100 animate-pulse rounded-2xl' />
-                            ))
-                        ) : (
-                            <Suggestion sliceTo={5} />
-                        )}
-                    </div>
-                </section>
-            </div>
-        </Container>
-    )
-}
-
-export default NearbyPlacesView
-</file>
-
-<file path="src/hooks/useAddToFavors.ts">
-import { AppDispatch, RootState } from "@/app/store";
-import { getLocationDetails } from "@/store/details/api/fetchLocationDetails";
-import { useState, useEffect } from "react";
-import { useDispatch, useSelector } from "react-redux";
-
-type Coords = {
-    name?: string;
-    lat: number;
-    lng: number;
-};
-
-export const useFavorites = () => {
-    const [favors, setFavors] = useState<Coords[]>([]); // from local storage
-    const details = useSelector((d: RootState) => d.details.selectedLocation);
-    const disPatch = useDispatch<AppDispatch>();
-
-    useEffect(() => {
-        const data = localStorage.getItem("favorites");
-        if (data) {
-            try {
-                const parsedData = JSON.parse(data);
-                if (Array.isArray(parsedData)) {
-                    setFavors(parsedData);
-                }
-            } catch (e) {
-                console.error("Favorites storage is corrupted", e);
-            }
-        }
-    }, []);
-
-    const addToFavors = async (newFavors: Coords) => {
-        try {
-            const result = await disPatch(getLocationDetails(newFavors)).unwrap();
-
-            const entryWithDetails = {
-                ...newFavors,
-                name: result?.name || "Unknown Location"
-            };
-
-            const data = localStorage.getItem("favorites");
-            let current: Coords[] = [];
-            if (data) {
-                const parsed = JSON.parse(data);
-                if (Array.isArray(parsed)) current = parsed;
-            }
-
-            const filtered = current.filter(
-                (item) => !(item.lat === newFavors.lat && item.lng === newFavors.lng)
-            );
-
-            const updated = [entryWithDetails, ...filtered].slice(0, 8);
-            localStorage.setItem("favorites", JSON.stringify(updated));
-            setFavors(updated);
-
-        } catch (error) {
-            console.error("Failed to fetch location details for favorites", error);
-        }
-    };
-
-
-    return { favors, addToFavors };
-};
-</file>
-
-<file path="src/hooks/useAddToRecent.ts">
-import { AppDispatch, RootState } from "@/app/store";
-import { getLocationDetails } from "@/store/details/api/fetchLocationDetails";
-import { useState, useEffect } from "react";
-import { useDispatch, useSelector } from "react-redux";
-
-type Coords = {
-    name?: string;
-    lat: number;
-    lng: number;
-};
-
-export const useRecentSearches = () => {
-    const [recent, setRecent] = useState<Coords[]>([]);
-    const details = useSelector((d: RootState) => d.details.selectedLocation);
-    const disPatch = useDispatch<AppDispatch>()
-
-    useEffect(() => {
-        if (typeof window !== "undefined") {
-            const data = localStorage.getItem("recent");
-            if (data) {
-                try {
-                    const parsedData = JSON.parse(data);
-                    if (Array.isArray(parsedData)) {
-                        setRecent(parsedData);
-                    }
-                } catch (e) {
-                    console.error("Recent searches storage is corrupted", e);
-                }
-            }
-        }
-    }, []);
-
-    const addToRecent = (newRecent: Coords) => {
-
-        disPatch(getLocationDetails(newRecent));
-
-        setRecent((prev) => {
-
-            const filtered = prev.filter(
-                (item) => !(item.lat === newRecent.lat && item.lng === newRecent.lng)
-            );
-
-            const entryWithDetails = {
-                ...newRecent,
-                name: details?.name || newRecent.name || "Unknown Location"
-            };
-
-            const updated = [entryWithDetails, ...filtered].slice(0, 8);
-            localStorage.setItem("recent", JSON.stringify(updated));
-
-            return updated;
-        });
-    };
-    return { recent, addToRecent };
-};
-</file>
-
 <file path="src/hooks/useDebounce.ts">
 "use client";
 import { useEffect, useState } from "react";
@@ -1768,167 +679,6 @@ function H2({ children, className = "", classNameChild = "" }: H2Types) {
 export default H2
 </file>
 
-<file path="src/reuseable_components/Suggestion.tsx">
-'use client'
-import React, { useState, useEffect } from 'react'
-import { motion } from 'framer-motion'
-import { RootState } from '@/app/store'
-import { useSelector } from 'react-redux'
-import { useRouter, useSearchParams } from 'next/navigation'
-import Window from './Window'
-
-type Props = {
-    sliceTo: number
-}
-
-function Suggestion({ sliceTo }: Props) {
-    const [mounted, setMounted] = useState(false);
-    const { nearbyPlaces, nearbyLoading } = useSelector((state: RootState) => state.details)
-    const router = useRouter()
-    const searchParams = useSearchParams()
-
-    const currentLat = searchParams.get('lat');
-    const currentLng = searchParams.get('lng');
-
-    const currentView = searchParams.get('view')
-    const isView = currentView === 'nearby_places'
-
-    useEffect(() => {
-        setMounted(true);
-    }, []);
-
-    const filteredPlaces = nearbyPlaces?.filter(place => {
-        if (!currentLat || !currentLng) return true;
-
-        const isSelected =
-            Math.abs(place.coords.lat - parseFloat(currentLat)) < 0.0001 &&
-            Math.abs(place.coords.lng - parseFloat(currentLng)) < 0.0001;
-
-        return !isSelected;
-    });
-
-    const noPlaces = !nearbyLoading && (!filteredPlaces || filteredPlaces.length === 0)
-
-    if (!mounted) return <div className='w-full min-h-20' />;
-
-    return (
-        <motion.section className='w-full hide-scrollbar'
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 20 }}
-        >
-            {
-                noPlaces ? (
-                    <Window title="Suggestions" className='flex justify-center items-center p-8 text-center text-sm text-muted-foreground'>
-                        Please enable location access to see nearby suggestions.
-                    </Window>
-                ) : (
-                    <Window title="Suggestions" dontShowTitleAt='nearby_places' className='p-2'>
-                        {nearbyLoading ? (
-                            [1, 2].map(i => <div key={i} className='w-full h-24 bg-muted animate-pulse mb-2 rounded-xl' />)
-                        ) : (
-                            filteredPlaces?.slice(0, sliceTo).map((place, index) => (
-                                <div
-                                    key={place.id}
-                                    onClick={() => router.push(`?lat=${place.coords.lat}&lng=${place.coords.lng}`)}
-                                    className={`w-full py-4 px-3 flex items-center gap-2 active:bg-secondary/50 active:scale-[0.98] hover:bg-secondary/25 transition-all cursor-pointer 
-                                    ${index !== (filteredPlaces.slice(0, sliceTo).length - 1) ? 'border-b border-border/50' : ''}`}
-                                >
-                                    <div className='size-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 shadow-sm'>
-                                        <span className='text-primary text-xs font-black uppercase'>
-                                            {place.shortName?.charAt(0) || place.name?.charAt(0) || '?'}
-                                        </span>
-                                    </div>
-                                    <div className='flex-1 overflow-hidden'>
-                                        <h3 className='font-black text-sm tracking-tight truncate text-foreground'>{place.shortName}</h3>
-                                        <p className='text-[10px] text-muted-foreground font-bold uppercase tracking-widest'>{place.category}</p>
-                                    </div>
-                                </div>
-                            ))
-                        )}
-                    </Window>
-                )
-            }
-
-            {!isView && !nearbyLoading && (filteredPlaces?.length ?? 0) > sliceTo && (
-                <div className='w-full justify-center flex py-3'>
-                    <button type='button' className='text-primary text-xs hover:underline' onClick={() => router.push('?view=nearby_places')}>
-                        See more suggestions
-                    </button>
-                </div>
-            )}
-        </motion.section>
-    )
-}
-
-export default React.memo(Suggestion)
-</file>
-
-<file path="src/reuseable_components/Title.tsx">
-import React, { ReactNode } from 'react'
-import { useRouter } from 'next/navigation'
-import { ArrowRight } from 'lucide-react'
-
-type Title = {
-    text: string,
-    className?: string,
-    icon?: ReactNode,
-}
-function Title({ text, icon, className = "" }: Title) {
-    const router = useRouter()
-    return (
-        <div className={`w-full flex justify-between items-center mb-3 ${className}`}>
-            <h1 className='text-2xl font-black tracking-tighter'>{text}</h1>
-            <button
-                type='button'
-                onClick={() => router.back()}
-                className='bg-secondary p-2 rounded-full active:scale-90 transition-transform'
-            >
-                <ArrowRight className="size-5" />
-            </button>
-        </div>
-    )
-}
-
-export default React.memo(Title)
-</file>
-
-<file path="src/reuseable_components/Window.tsx">
-import React, { memo } from 'react'
-import H2 from './H2';
-import { useSearchParams } from 'next/navigation';
-
-interface WindowProps {
-    children: React.ReactNode;
-    className?: string;
-    title?: string;
-    dontShowTitleAt?: string;
-    onClick?: () => void;
-}
-
-function Window({ children, onClick, title, dontShowTitleAt, className = "" }: WindowProps) {
-    const searchParams = useSearchParams();
-    const view = searchParams.get('view');
-
-    const shouldShowTitle = title && (!view || view !== dontShowTitleAt);
-
-    return (
-        <>
-            {shouldShowTitle && <H2>{title}</H2>}
-
-            <div
-                onClick={onClick}
-                className={`bg-window w-full min-h-20 rounded-md mb-2 p-2 ${className}`}
-            >
-                {children}
-            </div>
-        </>
-    )
-}
-
-export default memo(Window)
-</file>
-
 <file path="src/store/details/api/fetchClosestPlacesThunk.ts">
 import { createAsyncThunk } from "@reduxjs/toolkit";
 import axios from "axios";
@@ -1970,6 +720,7 @@ const formatFeature = (feature: any, map_key: string | undefined) => {
 </file>
 
 <file path="src/store/details/api/fetchLocationDetails.ts">
+import { RootState } from "@/app/store";
 import { createAsyncThunk } from "@reduxjs/toolkit";
 import axios from "axios";
 
@@ -1984,8 +735,24 @@ export interface LocationDetail {
     reviewsCount: number;
 }
 
-export const getLocationDetails = createAsyncThunk<LocationDetail, { lat: number; lng: number }, { rejectValue: string }>(
-    'route/getLocationDetails',
+
+export interface LocationDetail {
+    id: string;
+    name: string;
+    shortName: string;
+    coords: { lat: number; lng: number };
+    image: string;
+    category: string;
+    rating: string;
+    reviewsCount: number;
+}
+
+export const getLocationDetails = createAsyncThunk<
+    LocationDetail,
+    { lat: number; lng: number },
+    { rejectValue: string; state: RootState }
+>(
+    'details/getLocationDetails',
     async (coords, { rejectWithValue }) => {
         try {
             const map_key = process.env.NEXT_PUBLIC_MAP_KEY;
@@ -1994,6 +761,7 @@ export const getLocationDetails = createAsyncThunk<LocationDetail, { lat: number
                 return rejectWithValue("Map API Key is missing. Check your .env file.");
             }
 
+            // طلب البيانات من MapTiler
             const locationDetailsURL = `https://api.maptiler.com/geocoding/${coords.lng},${coords.lat}.json?key=${map_key}&types=poi,place,address`;
             const res = await axios.get(locationDetailsURL);
 
@@ -2003,35 +771,54 @@ export const getLocationDetails = createAsyncThunk<LocationDetail, { lat: number
                 return rejectWithValue("Could not find any information for this location.");
             }
 
-            // MapTiler ساعات بترجع الاسم في 'text' وساعات 'place_name'
             const placeName = feature.text || feature.place_name?.split(',')[0] || "Unknown Location";
-
             const imageUrl = `https://api.maptiler.com/maps/hybrid/static/${coords.lng},${coords.lat},16/500x300.jpg?key=${map_key}`;
 
+            const idSeed = feature.id ? feature.id.length : 7;
+            const stableRating = (3.8 + (idSeed % 12) / 10).toFixed(1);
+            const stableReviews = 50 + (idSeed * 3);
+
             return {
-                id: feature.id || `${coords.lat}-${coords.lng}`,
+                id: feature.id || `${coords.lat.toFixed(4)}-${coords.lng.toFixed(4)}`,
                 name: feature.place_name || placeName,
                 shortName: placeName,
                 coords: coords,
                 image: imageUrl,
                 category: feature.properties?.category?.[0] || feature.properties?.type || "Location",
-                // الـ Logic بتاعك للـ rating ممتاز للـ Dummy Data
-                rating: (Math.random() * (5 - 3.8) + 3.8).toFixed(1),
-                reviewsCount: Math.floor(Math.random() * 500) + 50
+                rating: stableRating,
+                reviewsCount: stableReviews
             };
 
         } catch (error: any) {
-            // معالجة أخطاء axios بشكل احترافي
             let errorMessage = "An unexpected error occurred";
-
             if (axios.isAxiosError(error)) {
                 errorMessage = error.response?.data?.message || error.message;
             } else if (error instanceof Error) {
                 errorMessage = error.message;
             }
-
             console.error("Fetch Details Error:", errorMessage);
             return rejectWithValue(errorMessage);
+        }
+    },
+    {
+        condition: (coords, { getState }) => {
+            const { details } = getState();
+
+            if (details.status === 'loading') {
+                return false;
+            }
+
+            const lastCoords = details.selectedLocation?.coords;
+            if (lastCoords) {
+                const isSameLat = lastCoords.lat.toFixed(4) === coords.lat.toFixed(4);
+                const isSameLng = lastCoords.lng.toFixed(4) === coords.lng.toFixed(4);
+
+                if (isSameLat && isSameLng) {
+                    return false;
+                }
+            }
+
+            return true;
         }
     }
 );
@@ -2094,7 +881,6 @@ export const details = createSlice({
             .addCase(getLocationDetails.pending, (state) => {
                 state.status = 'loading';
                 state.error = null;
-                state.selectedLocation = null;
             })
             .addCase(getLocationDetails.fulfilled, (state, action: PayloadAction<LocationDetail>) => {
                 state.status = 'success';
@@ -2120,6 +906,35 @@ export const details = createSlice({
 
 export const { clearDetails, addToRecentSearched } = details.actions;
 export default details.reducer;
+</file>
+
+<file path="src/store/global_data/dataSlice.ts">
+import { createSlice, PayloadAction } from '@reduxjs/toolkit';
+
+type Props = {
+    inputSearch?: string
+}
+
+// states
+const initialState: Props = {
+    inputSearch: ''
+};
+
+export const data = createSlice({
+    name: 'data',
+    initialState,
+    reducers: {
+        setSearch: (state, action) => {
+            state.inputSearch = action.payload
+        },
+        deleteSearch: (state) => {
+            state.inputSearch = ''
+        }
+    },
+});
+
+export const { setSearch, deleteSearch } = data.actions;
+export default data.reducer;
 </file>
 
 <file path="src/store/lang/languageSlice.ts">
@@ -2344,6 +1159,40 @@ export default themeSlice.reducer
 }
 </file>
 
+<file path="CLAUDE.md">
+# Project: Maps & Locations App
+
+## Tech Stack
+- **Framework**: Next.js 14+ (App Router)
+- **Language**: TypeScript (TSX)
+- **Styling**: Tailwind CSS (Utility-first)
+- **State Management**: Redux Toolkit (AppDispatch/RootState)
+- **Animations**: Framer Motion
+- **Maps**: React Map GL (Maplibre)
+
+## Coding Standards
+- Use **Functional Components** with `memo` for UI performance.
+- Preference for **Lucide React** for icons.
+- Use `shadcn/ui` patterns or custom glassmorphism components.
+- Always use **Lucide icons** for map-related actions.
+- Use `use client` directive only when necessary (interactive components).
+
+## Naming Conventions
+- Components: PascalCase (e.g., `MapComponent.tsx`)
+- Hooks: camelCase (e.g., `useFavorites.ts`)
+- Redux Slices: camelCase (e.g., `detailsSlice.ts`)
+
+## Common Commands
+- Build: `npm run build`
+- Dev: `npm run dev`
+- Lint: `npm run lint`
+
+## Specific Rules
+- Coordinate precision: Use `Math.abs(diff) > 0.0001` for map comparisons.
+- Storage: Use `localStorage` for `favorites` and `recent_searches` (max 8 items).
+- UI: Maintain a "Glassmorphism" theme using `bg-window/80` and `backdrop-blur`.
+</file>
+
 <file path="README.md">
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
@@ -2444,6 +1293,1363 @@ export default function page() {
             </div>
         </div>
     );
+}
+</file>
+
+<file path="src/components/map-view/main_map/Map.tsx">
+"use client";
+import { useCallback, useState, useMemo, Suspense } from "react";
+import { MapProvider } from "react-map-gl/maplibre";
+import "maplibre-gl/dist/maplibre-gl.css";
+import { useSelector } from "react-redux";
+import { RootState } from "@/app/store";
+import maplibregl from 'maplibre-gl';
+import MapComponent from "./MapComponent";
+import Sidebar from "../side_bar/Sidebar";
+import Btns from "../Btns";
+
+if (typeof window !== "undefined" && maplibregl.getRTLTextPluginStatus() === 'unavailable') {
+    maplibregl.setRTLTextPlugin('https://unpkg.com/@mapbox/mapbox-gl-rtl-text@0.2.3/mapbox-gl-rtl-text.min.js', true);
+}
+
+export default function Map() {
+    const mode = useSelector((state: RootState) => state.theme.mode);
+    const map_key = process.env.NEXT_PUBLIC_MAP_KEY;
+
+    const mapStyle = useMemo(() => (
+        mode === 'dark'
+            ? `https://api.maptiler.com/maps/streets-v2-dark/style.json?key=${map_key}`
+            : `https://api.maptiler.com/maps/streets-v2/style.json?key=${map_key}`
+    ), [mode, map_key]);
+
+
+    return (
+        <main className="relative h-[100dvh] w-full overflow-hidden bg-background">
+            <MapProvider>
+                <div className="absolute inset-0 z-0">
+                    <Suspense>
+                        <MapComponent
+                            mapStyle={mapStyle}
+                        />
+                    </Suspense>
+                </div>
+            </MapProvider>
+
+            <div className="relative z-10 pointer-events-none h-full w-full">
+                <Suspense>
+                    <Sidebar />
+                </Suspense>
+                <Btns />
+            </div>
+        </main>
+    );
+}
+</file>
+
+<file path="src/components/map-view/main_map/MapComponent.tsx">
+"use client";
+import MapGL, { Marker, useMap } from "react-map-gl/maplibre";
+import React, { memo, useEffect, useCallback, useState } from "react";
+import { useDispatch } from "react-redux";
+import { AppDispatch } from "@/app/store";
+import { getLocationDetails } from "@/store/details/api/fetchLocationDetails";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useRecentSearches } from "@/hooks/useAddToRecent";
+
+interface MapComponentProps {
+    mapStyle: string;
+}
+
+const MapComponent = memo(({ mapStyle }: MapComponentProps) => {
+
+    const [viewState, setViewState] = useState({
+        longitude: 31.2357,
+        latitude: 30.0444,
+        zoom: 10
+    });
+
+    const dispatch = useDispatch<AppDispatch>();
+    const searchParams = useSearchParams();
+
+    const router = useRouter();
+    const { "main-map": map } = useMap();
+
+    const URLLat = searchParams.get('lat');
+    const URLLng = searchParams.get('lng');
+    const isLocationMine = searchParams.get('m');
+
+    const latitude = URLLat ? parseFloat(URLLat) : null;
+    const longitude = URLLng ? parseFloat(URLLng) : null;
+    const { addToRecent } = useRecentSearches()
+
+    // if has URL
+    useEffect(() => {
+        if (latitude && longitude) {
+            const coords = { latitude, longitude };
+
+            const isDifferent =
+                Math.abs(viewState.latitude - latitude) > 0.0001 ||
+                Math.abs(viewState.longitude - longitude) > 0.0001;
+
+            if (isDifferent) {
+                setViewState({ ...coords, zoom: 16 })
+                dispatch(getLocationDetails({ lat: latitude, lng: longitude }));
+                // Fly to location
+                if (map) {
+                    map.flyTo({
+                        center: [longitude, latitude],
+                        zoom: 16,
+                        duration: 2000,
+                        essential: true,
+                        padding: { bottom: 200 }
+                    });
+                    addToRecent({ lat: latitude, lng: longitude })
+                }
+            }
+        }
+    }, [latitude, longitude, dispatch]);
+
+
+    const handleMove = useCallback((e: any) => {
+        setViewState(e.viewState);
+    }, []);
+
+    const handleMapClick = useCallback((e: any) => {
+        const { lng, lat } = e.lngLat;
+        router.push(`?lat=${lat}&lng=${lng}`, { scroll: false });
+    }, [router]);
+
+    return (
+        <MapGL
+            {...viewState}
+            id="main-map"
+            onMove={handleMove}
+            onClick={handleMapClick}
+            mapStyle={mapStyle}
+            style={{ width: "100%", height: "100%" }}
+        >
+            {latitude && longitude && (
+                <Marker latitude={latitude} longitude={longitude} anchor="bottom">
+                    {isLocationMine === 'true' ? (
+                        <div className="relative flex items-center justify-center">
+                            <span className="absolute size-10 bg-blue-500/30 rounded-full animate-ping" />
+                            <span className="size-5 bg-blue-600 border-[3px] border-white rounded-full shadow-lg" />
+                        </div>
+                    ) : (
+                        <div className="flex flex-col items-center group cursor-pointer">
+                            <div className="relative flex items-center justify-center size-9 bg-red-600 rounded-full shadow-xl border-2 border-white group-hover:scale-110 transition-transform duration-300">
+                                <div className="size-2.5 bg-white rounded-full animate-pulse" />
+                            </div>
+                            <div className="w-0 h-0 border-l-[7px] border-l-transparent border-r-[7px] border-r-transparent border-t-[10px] border-t-destructive -mt-[2px] shadow-sm" />
+                        </div>
+                    )}
+                </Marker>
+            )}
+        </MapGL>
+    );
+});
+
+MapComponent.displayName = "MapComponent";
+export default MapComponent;
+</file>
+
+<file path="src/components/map-view/side_bar/_components/results/categories/Favorite.tsx">
+'use client'
+
+import { useFavorites } from '@/hooks/useAddToFavors'
+import H2 from '@/reuseable_components/H2'
+import Suggestion from '@/reuseable_components/Suggestion'
+import Window from '@/reuseable_components/Window'
+import { Plus } from 'lucide-react'
+import { useRouter, useSearchParams } from 'next/navigation'
+
+function Favorite({ sliceFavorsTo }: { sliceFavorsTo: number }) {
+
+    const { favors } = useFavorites()
+
+    const router = useRouter()
+
+    const goToLocation = (lat: number, lng: number): void => {
+        router.push(`?lat=${lat}&lng=${lng}`)
+    }
+
+    const showAllFavors = (): void => {
+        router.push('?view=favorites')
+    }
+
+    const searchParams = useSearchParams()
+    const view = searchParams.get('view')
+
+    return (
+        <div className="w-full">
+            <div className='w-full flex justify-between'>
+                <H2>Favorites</H2>
+                {!(view || view === 'favorites') && favors.length > 0 && (
+                    <button type='button' onClick={showAllFavors} className="group flex items-center gap-1 text-[#0C79FE] hover:underline hover:underline-offset-4 transition-all md:text-[15px] text-[12px]">
+                        <span>see all</span>
+                    </button>
+                )}
+            </div>
+
+            <Window className='p-2 py-4 mb-5 flex justify-center items-center'>
+                <div className="flex flex-col gap-2 w-full">
+                    {favors && favors.length > 0 ? (
+                        favors.slice(0, sliceFavorsTo).map((item) => (
+                            <div
+                                key={`${item.lat}-${item.lng}`}
+                                onClick={() => goToLocation(item.lat, item.lng)}
+                                className='flex items-center gap-3 p-2 hover:bg-secondary/20 active:scale-[0.98] transition-all cursor-pointer border-b border-border/40 last:border-0'
+                            >
+                                <div className='size-8 shrink-0 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-bold'>
+                                    {item.name?.charAt(0) || 'L'}
+                                </div>
+
+                                <div className="flex flex-col overflow-hidden">
+                                    <h1 className='text-sm font-medium truncate text-foreground'>
+                                        {item.name || "Unknown Location"}
+                                    </h1>
+                                    <span className='text-[10px] text-muted-foreground'>
+                                        {item.lat.toFixed(4)}, {item.lng.toFixed(4)}
+                                    </span>
+                                </div>
+                            </div>
+                        ))
+                    ) : (
+                        <div className="flex flex-col justify-center items-center w-full h-full">
+                            <button type='button' onClick={() => router.push('?view=nearby_places')} className='p-3 rounded-full flex justify-center items-center mb-1 bg-secondary/70 active:scale-[0.98] transition-all active:bg-secondary hover:bg-secondary'>
+                                <Plus />
+                            </button>
+                            <h1 className="md:text-xs text-[10px] text-muted-foreground uppercase tracking-widest">Add</h1>
+                        </div>
+                    )}
+                </div>
+            </Window>
+
+            {(view || view === 'recent') && (<Suggestion sliceTo={3} />)}
+        </div >
+    )
+}
+
+export default Favorite
+</file>
+
+<file path="src/components/map-view/side_bar/_components/results/categories/MyCategory.tsx">
+'use client'
+import Favorite from './Favorite'
+import Recent from './Recent'
+import Suggestion from '@/reuseable_components/Suggestion'
+
+function MyCategory() {
+    return (
+        <div className='w-full h-[calc(105vh-180px)] overflow-y-auto space-y-6 px-1 hide-scrollbar pb-10'>
+
+            <Favorite sliceFavorsTo={2} />
+            <Recent sliceRecentTo={2} />
+            <Suggestion sliceTo={3} />
+
+        </div>
+    )
+}
+
+export default MyCategory
+</file>
+
+<file path="src/components/map-view/side_bar/_components/results/categories/Recent.tsx">
+'use client'
+import { useRecentSearches } from '@/hooks/useAddToRecent'
+import H2 from '@/reuseable_components/H2'
+import Suggestion from '@/reuseable_components/Suggestion'
+import Window from '@/reuseable_components/Window'
+import { useRouter, useSearchParams } from 'next/navigation'
+
+function Recent({ sliceRecentTo }: { sliceRecentTo: number }) {
+    const { recent } = useRecentSearches()
+    const router = useRouter()
+
+    const goToLocation = (lat: number, lng: number): void => {
+        router.push(`?lat=${lat}&lng=${lng}`)
+    }
+
+    const showAllRecent = (): void => {
+        router.push('?view=recent')
+    }
+    const searchParams = useSearchParams()
+    const view = searchParams.get('view')
+
+    return (
+        <div className="w-full">
+            <div className='w-full flex justify-between'>
+                <H2>Recent</H2>
+                {!(view || view === 'recent') && recent.length > 0 && (
+                    <button type='button' onClick={showAllRecent} className="group flex items-center gap-1 text-[#0C79FE] hover:underline hover:underline-offset-4 transition-all md:text-[15px] text-[12px]">
+                        <span>see all</span>
+                    </button>
+                )}
+            </div>
+
+            <Window className='p-2 mb-5 flex justify-center items-center'>
+                <div className="flex flex-col gap-2 w-full">
+                    {recent && recent.length > 0 ? (
+                        recent.slice(0, sliceRecentTo).map((item) => (
+                            <div
+                                key={`${item.lat}-${item.lng}`}
+                                onClick={() => goToLocation(item.lat, item.lng)}
+                                className='flex items-center gap-3 p-2 hover:bg-secondary/20 active:scale-[0.98] transition-all cursor-pointer border-b border-border/40 last:border-0'
+                            >
+                                <div className='size-8 shrink-0 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-bold'>
+                                    {item.name?.charAt(0) || 'L'}
+                                </div>
+
+                                <div className="flex flex-col overflow-hidden">
+                                    <h1 className='text-sm font-medium truncate text-foreground'>
+                                        {item.name || "Unknown Location"}
+                                    </h1>
+                                    <span className='text-[10px] text-muted-foreground'>
+                                        {item.lat.toFixed(4)}, {item.lng.toFixed(4)}
+                                    </span>
+                                </div>
+                            </div>
+                        ))
+                    ) : (
+                        <div className="flex justify-center items-center w-full h-full">
+                            <h1 className="md:text-xs text-[10px] text-muted-foreground uppercase tracking-widest">No recent searches</h1>
+                        </div>
+                    )}
+                </div>
+            </Window>
+
+            {(view || view === 'recent') && (<Suggestion sliceTo={3} />)}
+        </div >
+    )
+}
+
+export default Recent
+</file>
+
+<file path="src/components/map-view/side_bar/_components/results/DetailCard.tsx">
+'use client'
+import React, { useCallback, memo } from 'react' // ضفنا useCallback و memo
+import Window from '@/reuseable_components/Window';
+import { StarIcon as StarSolid } from '@heroicons/react/24/solid';
+import { motion } from 'framer-motion';
+import { MapPin, Clock, Copy, X } from 'lucide-react';
+import QuickBtns from './quick_access/QuickBtns';
+import { toast } from 'sonner';
+import Suggestion from '@/reuseable_components/Suggestion';
+
+interface DetailCardProps {
+    location: any;
+    onBack: () => void;
+}
+
+const DetailCardComponent = ({ location, onBack }: DetailCardProps) => {
+
+    const handleCopyAddress = useCallback(() => {
+        if (location?.name) {
+            navigator.clipboard.writeText(window.location.href);
+            toast.success("Link copied to clipboard");
+        }
+    }, [location?.name]);
+
+    return (
+        <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 20 }}
+            className="w-full flex flex-col h-full bg-card"
+        >
+            {/* Header Section */}
+            <div className='w-full flex justify-between items-start mb-4 px-1'>
+                <div className="flex-1 overflow-hidden pr-2">
+                    <h2 className="text-xl md:text-2xl font-black text-foreground tracking-tighter leading-tight italic uppercase truncate">
+                        {location?.name || "Selected Location"}
+                    </h2>
+                    <div className='flex items-center gap-2 mt-1'>
+                        <StarSolid className="size-4 text-amber-500 shrink-0" />
+                        <span className="text-sm font-bold text-foreground">{location?.rating || "0.0"}</span>
+                        <span className="text-[10px] text-muted-foreground font-medium truncate">
+                            • {location?.reviewsCount || 0} reviews
+                        </span>
+                    </div>
+                </div>
+                <button
+                    type='button'
+                    onClick={onBack}
+                    className="p-2 bg-secondary/50 hover:bg-destructive hover:text-white rounded-full transition-all active:scale-90 shrink-0"
+                >
+                    <X className="size-4" />
+                </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto hide-scrollbar space-y-5 pb-6">
+
+                {/* Quick Action Buttons */}
+                <QuickBtns coords={location?.coords} />
+
+                {/* Location Details Window */}
+                <Window title='Location Details' className='p-4 space-y-5'>
+                    <div className="flex items-start gap-4 group/item">
+                        <div className="p-2.5 bg-red-600/10 rounded-xl shrink-0">
+                            <MapPin className="size-5 text-red-600" />
+                        </div>
+                        <div className="flex-1 overflow-hidden">
+                            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.15em] mb-1">Address</p>
+                            <p className="text-sm font-semibold text-foreground/90 leading-snug line-clamp-2">
+                                {location?.name || "Address not available"}
+                            </p>
+                        </div>
+                        <button
+                            type='button'
+                            onClick={handleCopyAddress}
+                            className="opacity-0 group-hover/item:opacity-100 p-2 hover:bg-secondary rounded-lg transition-all shrink-0"
+                        >
+                            <Copy className="size-4 text-muted-foreground" />
+                        </button>
+                    </div>
+
+                    <div className="flex items-start gap-4">
+                        <div className="p-2.5 bg-blue-600/10 rounded-xl shrink-0">
+                            <Clock className="size-5 text-blue-600" />
+                        </div>
+                        <div className="flex-1">
+                            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.15em] mb-1">Business Hours</p>
+                            <div className="flex items-center flex-wrap gap-x-2">
+                                <span className={`text-[11px] font-black px-2 py-0.5 rounded-full ${location?.isOpen ? 'bg-emerald-500/10 text-emerald-600' : 'bg-red-500/10 text-red-600'}`}>
+                                    {location?.isOpen ? 'OPEN' : 'CLOSED'}
+                                </span>
+                                <span className="text-xs text-muted-foreground font-medium italic">
+                                    • {location?.hours || "Check schedule"}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </Window>
+
+                {/* Suggestions Section */}
+                <div className="pt-2">
+                    <Suggestion sliceTo={3} />
+                </div>
+            </div>
+        </motion.div>
+    );
+}
+
+export const DetailCard = memo(DetailCardComponent);
+</file>
+
+<file path="src/components/map-view/side_bar/_components/results/LocationCard.tsx">
+import Window from '@/reuseable_components/Window';
+import { MapPinIcon, ChevronRightIcon } from '@heroicons/react/24/outline'
+
+interface LocationCardProps {
+    item: any;
+    onClick: (coords: { lat: number; lng: number }) => void;
+}
+
+export const LocationCard = ({ item, onClick }: LocationCardProps) => (
+    <Window
+        onClick={() => onClick(item.coords)}
+        className="cursor-pointer w-full group relative flex items-center gap-4 p-4 bg-card/40 hover:border border border-transparent backdrop-blur-sm rounded-md hover:border-primary/40 hover:bg-secondary/40 transition-all duration-300 text-left shadow-sm overflow-hidden"
+    >
+        <div className="flex-shrink-0 flex items-center justify-center size-10 rounded-full bg-red-500 text-white transition-all duration-300">
+            <MapPinIcon className="size-5" />
+        </div>
+        <div className="flex-1 min-w-0 z-10">
+            <h3 className="font-bold text-sm text-foreground group-hover:text-primary transition-colors truncate">
+                {item.name}
+            </h3>
+            <p className="text-[10px] font-mono text-muted-foreground/80 mt-0.5">
+                {item.coords.lat.toFixed(4)}° N, {item.coords.lng.toFixed(4)}° E
+            </p>
+        </div>
+        <ChevronRightIcon className="size-4 text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all" />
+    </Window>
+);
+</file>
+
+<file path="src/components/map-view/side_bar/_components/results/quick_access/Options.tsx">
+'use client'
+import React from 'react'
+import { motion } from 'framer-motion'
+import { Share2, Bookmark, Navigation2 } from 'lucide-react'
+import { useFavorites } from '@/hooks/useAddToFavors'
+import { toast } from 'sonner'
+
+type Coords = {
+    lat: number;
+    lng: number;
+};
+
+type OptionsProps = {
+    setShowOptions: (val: boolean) => void,
+    coords: Coords
+}
+
+type MenuItem = {
+    icon: React.ReactNode;
+    label: string;
+    color: string;
+    action: () => void;
+    message?: string;
+};
+
+function Options({ setShowOptions, coords }: OptionsProps) {
+    const { addToFavors } = useFavorites()
+
+    const handleShare = async () => {
+        try {
+            const fullUrl = window.location.href;
+            await navigator.clipboard.writeText(fullUrl);
+            toast.success("URL copied");
+        } catch (error) {
+            toast.error("Failed to copy link");
+        }
+    };
+
+    const menuItems: MenuItem[] = React.useMemo(() => [
+        {
+            icon: <Navigation2 size={16} />,
+            label: 'Directions',
+            color: 'text-blue-500',
+            action: () => window.open(
+                `https://www.google.com/maps?q=${coords.lat},${coords.lng}`,
+                '_blank',
+                'noopener,noreferrer'
+            ),
+            message: 'Opening Google Maps...'
+        },
+        {
+            icon: <Bookmark size={16} />,
+            label: 'Save Place',
+            color: 'text-yellow-500',
+            action: () => addToFavors(coords),
+            message: 'Added to your favorites!'
+        },
+        {
+            icon: <Share2 size={16} />,
+            label: 'Share',
+            color: 'text-green-500',
+            action: handleShare,
+        }
+    ], [coords, addToFavors])
+
+    const handleClick = (item: MenuItem) => {
+        const doHandle = async () => {
+
+            setShowOptions(false);
+
+            await item.action();
+
+            if (item.message) {
+                toast.success(item.message);
+            }
+        }
+        doHandle()
+    }
+
+    return (
+        <motion.div
+            initial={{ opacity: 0, scale: 0.9, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.9, y: 10 }}
+            className="absolute top-16 right-0 w-48 bg-window border border-border/50 rounded-2xl shadow-2xl overflow-hidden z-50 backdrop-blur-md"
+        >
+            <div className="flex flex-col p-1">
+                {menuItems.map((item) => (
+                    <button
+                        type="button"
+                        key={item.label}
+                        onClick={() => handleClick(item)}
+                        className="flex items-center gap-2 w-full p-3 hover:bg-secondary/50 transition-colors rounded-xl group"
+                    >
+                        <div className={`${item.color} group-hover:scale-110 transition-transform`}>
+                            {item.icon}
+                        </div>
+                        <span className="text-sm font-medium text-foreground/80 group-hover:text-foreground">
+                            {item.label}
+                        </span>
+                    </button>
+                ))}
+            </div>
+        </motion.div >
+    )
+}
+
+export default Options
+</file>
+
+<file path="src/components/map-view/side_bar/_components/results/quick_access/QuickBtns.tsx">
+import { CarFront, MoreHorizontal } from 'lucide-react'
+import React, { useState } from 'react'
+import Options from './Options'
+import { AnimatePresence } from 'framer-motion'
+
+type Props = {
+    coords: {
+        lat: number;
+        lng: number;
+    }
+}
+
+function QuickBtns({ coords }: Props) {
+    const [showOptions, setShowOptions] = useState<boolean>(false)
+
+    const handleShowOptions = (): void => {
+        setShowOptions(prev => !prev)
+    }
+
+    return (
+        <div className="flex gap-2 w-full relative">
+
+            {/* start */}
+            <button type='button' className="flex-1 flex justify-center items-center gap-2 py-3 bg-[#0C79FE] text-white rounded-md hover:brightness-110 active:scale-[0.98] transition-all uppercase text-[11px] font-bold tracking-[2px] shadow-lg shadow-blue-500/20">
+                <CarFront size={18} strokeWidth={2.5} />
+                <span>Start</span>
+            </button>
+
+            {/* more */}
+            <button
+                type='button'
+                onClick={handleShowOptions}
+                aria-label="More options"
+                className={`p-3 rounded-md transition-all flex items-center justify-center active:scale-[0.95] bg-secondary/80 hover:bg-secondary/40`}
+            >
+                <MoreHorizontal size={24} />
+            </button>
+
+            <AnimatePresence>
+                {showOptions && (
+                    <Options
+                        setShowOptions={setShowOptions}
+                        coords={coords}
+                    />
+                )}
+            </AnimatePresence>
+        </div>
+    )
+}
+
+export default QuickBtns
+</file>
+
+<file path="src/components/map-view/side_bar/_components/results/Results.tsx">
+'use client'
+import { useSelector, useDispatch } from 'react-redux'
+import { RootState, AppDispatch } from '@/app/store'
+import { clearDetails } from '@/store/details/detailsSlice'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { useEffect, memo } from 'react'
+
+// components
+import { DetailCard } from './DetailCard'
+import { LocationCard } from './LocationCard'
+import MyCategory from './categories/MyCategory'
+import Suggestion from '@/reuseable_components/Suggestion'
+import { deleteSearch } from '@/store/global_data/dataSlice'
+
+const renderSkeleton = () => (
+    <div className="space-y-3 px-1">
+        {[1, 2, 3, 4, 5].map((i) => (
+            <div
+                key={i}
+                className="flex items-center gap-3 p-3 bg-secondary/30 rounded-xl border border-border/20 animate-pulse"
+            >
+                <div className="size-9 shrink-0 rounded-full bg-muted/50" />
+
+                <div className="flex flex-col flex-1 gap-2 overflow-hidden">
+                    <div className="h-3.5 w-3/4 bg-muted/60 rounded-md" />
+                    <div className="h-2.5 w-1/2 bg-muted/40 rounded-md" />
+                </div>
+            </div>
+        ))}
+    </div>
+);
+
+function Results() {
+    const dispatch = useDispatch<AppDispatch>()
+    const { results, status } = useSelector((state: RootState) => state.location);
+    const { selectedLocation, status: detailsStatus } = useSelector((state: RootState) => state.details);
+    const searchTerm = useSelector((d: RootState) => d.data.inputSearch)
+
+    const router = useRouter()
+    const searchParams = useSearchParams()
+
+    const lng = searchParams.get('lng')
+    const lat = searchParams.get('lat')
+    const hasParams = Boolean(lng && lat)
+
+    useEffect(() => {
+        if (!hasParams) {
+            dispatch(clearDetails())
+        }
+    }, [hasParams, dispatch])
+
+    const onBackFunction = () => {
+        router.push('/', { scroll: false })
+    }
+
+    const handleGetLocationDetails = (coords: { lat: number; lng: number }) => {
+        router.push(`?lat=${coords.lat}&lng=${coords.lng}`, { scroll: false });
+        dispatch(deleteSearch())
+    };
+
+    if (status === 'loading' || detailsStatus === 'loading') return renderSkeleton()
+
+    return (
+        <div className="flex-1">
+
+            {searchTerm && searchTerm.trim() !== "" ? (
+                <>
+                    {results && results.length > 0 ? (
+                        <div className="space-y-3 animate-in fade-in duration-500">
+                            {results.map((item: any) => (
+                                <LocationCard key={item.id} item={item} onClick={handleGetLocationDetails} />
+                            ))}
+                        </div>
+                    ) : (
+                        status === 'success' && (
+                            <div className="text-center py-10 text-destructive text-sm font-medium">No results found.</div>
+                        )
+                    )}
+                </>
+            ) : (
+                <>
+                    {selectedLocation ? (
+                        <div className='space-y-3'>
+                            <DetailCard location={selectedLocation} onBack={onBackFunction} />
+                        </div>
+                    ) : (
+                        status === 'idle' && (
+                            <MyCategory />
+                        )
+                    )}
+                </>
+            )}
+        </div>
+    );
+}
+
+export default memo(Results);
+</file>
+
+<file path="src/components/map-view/side_bar/_components/SearchInput.tsx">
+'use client'
+import React, { useEffect, useState } from 'react'
+import { useDispatch, useSelector } from 'react-redux'
+import { AppDispatch, RootState } from '@/app/store'
+import { MagnifyingGlassIcon } from '@heroicons/react/24/outline'
+import useDebounce from '@/hooks/useDebounce'
+import { setSearch } from '@/store/global_data/dataSlice' // تأكد من المسار
+import { searchLocation } from '@/store/location/locationSlice'
+
+function SearchInput() {
+    const dispatch = useDispatch<AppDispatch>()
+    const [typed, setTyped] = useState('')
+
+    const debouncedSearch = useDebounce(typed, 300)
+
+    useEffect(() => {
+
+        dispatch(setSearch(debouncedSearch))
+        if (debouncedSearch && debouncedSearch.length >= 2) {
+            dispatch(searchLocation(debouncedSearch))
+        }
+    }, [debouncedSearch, dispatch])
+
+    const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setTyped(e.target.value)
+    }
+
+    return (
+        <div className="relative group mb-3">
+            <MagnifyingGlassIcon className="absolute md:left-4 left-[10px] top-1/2 -translate-y-1/2 md:size-5 size-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
+            <input
+                type="text"
+                placeholder="Search for a place..."
+                value={typed}
+                onChange={handleSearch}
+                className="md:text-xd text-[13px] w-full h-[36px] md:pl-10 pl-8 pr-4 bg-secondary rounded-[8px] focus:outline-none focus:ring-1 focus:ring-primary/20 transition-all"
+            />
+        </div>
+    )
+}
+
+export default SearchInput
+</file>
+
+<file path="src/components/map-view/side_bar/Sidebar.tsx">
+'use client'
+
+import React, { useState, useEffect, useRef } from 'react'
+import { motion, useAnimationControls } from 'framer-motion'
+import { useOutsideClick } from '@/hooks/useOutsideClick'
+import { useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
+import NearbyPlacesView from '@/components/views/NearbyPlacesView'
+import SearchInput from './_components/SearchInput'
+import Results from './_components/results/Results'
+import Recent from './_components/results/categories/Recent'
+import Favorite from './_components/results/categories/Favorite'
+
+function Sidebar() {
+
+    const SearchParams = useSearchParams()
+
+    const [activeSlide, setActiveSlide] = useState<boolean>(false)
+    const controls = useAnimationControls()
+    const sidebarRef = useRef<HTMLDivElement>(null);
+    const router = useRouter()
+
+    // Logic positions for reusability
+    const positions = {
+        bottom: '82vh',
+        middle: '50vh',
+        top: '10vh'
+    }
+
+    const long = SearchParams.get('lng')
+    const lat = SearchParams.get('lat')
+    const view = SearchParams.get('view')
+    const selectedLocation = long && lat
+
+    useEffect(() => {
+        if (selectedLocation) {
+            controls.start({ y: positions.middle })
+        } else {
+            controls.start({ y: positions.bottom })
+        }
+    }, [selectedLocation, controls])
+
+    const handleDragEnd = (info: any) => {
+        const offsetThreshold = 100
+        const velocityThreshold = 500
+
+        if (info.offset.y < -offsetThreshold || info.velocity.y < -velocityThreshold) {
+            setActiveSlide(true)
+            controls.start({ y: positions.top })
+        }
+        else if (info.offset.y > offsetThreshold || info.velocity.y > velocityThreshold) {
+            setActiveSlide(false)
+            controls.start(selectedLocation ? { y: positions.middle } : { y: positions.bottom })
+        }
+    }
+
+    // Close when clicking outside the sidebarRef
+
+    useOutsideClick(sidebarRef, () => {
+        if (selectedLocation || activeSlide || view) {
+            setActiveSlide(false);
+            router.push('/', { scroll: false });
+            controls.start({ y: positions.bottom });
+        }
+    });
+
+    console.log('sidebar rendered')
+
+    return (
+        <>
+            <aside className="absolute inset-x-0 bottom-0 md:inset-y-0 md:left-0 md:w-96 md:z-30 z-30 md:p-4 pointer-events-none">
+                {/* white board */}
+                <motion.div
+                    ref={sidebarRef}
+                    drag="y"
+                    dragConstraints={{ top: 0, bottom: 0 }}
+                    dragElastic={0.1}
+                    animate={controls}
+                    initial={{ y: positions.bottom }}
+                    onDragEnd={handleDragEnd}
+                    className="h-[100vh] md:h-full w-full bg-card backdrop-blur-xl md:border border-border shadow-2xl rounded-t-[24px] md:rounded-3xl pointer-events-auto md:p-5 p-4 pb-10 flex flex-col md:gap-6 md:!transform-none space-y-3 overflow-hidden"
+                    style={{ touchAction: 'none' }}
+                >
+
+                    {/* drop shadow */}
+                    <div className='w-full flex justify-center items-center md:hidden shrink-0 cursor-grab active:cursor-grabbing'>
+                        <div className='w-12 h-1.5 rounded-full bg-muted-foreground/30' />
+                    </div>
+
+                    {view ? (
+                        <>
+                            {view === 'favorites' && <Favorite sliceFavorsTo={8} />}
+                            {view === 'nearby_places' && <NearbyPlacesView />}
+                            {view === 'recent' && <Recent sliceRecentTo={8} />}
+                        </>
+                    ) : (
+                        <div className="flex flex-col">
+                            {/* 1 */}
+                            {!selectedLocation && <SearchInput />}
+
+                            {/* 2 */}
+                            <div className="flex-1 overflow-hidden mt-4">
+                                {/* the problem */}
+                                <Results />
+                            </div>
+
+                        </div>
+                    )}
+
+                </motion.div>
+            </aside >
+        </>
+    )
+}
+
+export default Sidebar
+</file>
+
+<file path="src/components/views/NearbyPlacesView.tsx">
+'use client'
+
+import { RootState } from '@/app/store'
+import { useSelector } from 'react-redux'
+import Container from '@/reuseable_components/Container'
+import Suggestion from '@/reuseable_components/Suggestion'
+import Title from '@/reuseable_components/Title'
+
+function NearbyPlacesView() {
+
+    const { nearbyLoading } = useSelector((state: RootState) => state.details)
+
+    return (
+        <Container>
+            {/* Header */}
+            <Title text='Nearby places' />
+
+            <div className='w-full space-y-8'>
+                {/* places  */}
+                <section className='w-full overflow-y-auto no-scrollbar'>
+                    <div className='flex flex-col rounded-md overflow-y-auto'>
+                        {nearbyLoading ? (
+                            [1, 2, 3, 4].map(i => (
+                                <div key={i} className='w-full h-20 bg-gray-100 animate-pulse rounded-2xl' />
+                            ))
+                        ) : (
+                            <Suggestion sliceTo={5} />
+                        )}
+                    </div>
+                </section>
+            </div>
+        </Container>
+    )
+}
+
+export default NearbyPlacesView
+</file>
+
+<file path="src/hooks/useAddToFavors.ts">
+import { AppDispatch } from "@/app/store";
+import { getLocationDetails } from "@/store/details/api/fetchLocationDetails";
+import { useState, useEffect } from "react";
+import { useDispatch, useSelector } from "react-redux";
+
+type Coords = {
+    name?: string;
+    lat: number;
+    lng: number;
+};
+
+export const useFavorites = () => {
+    const [favors, setFavors] = useState<Coords[]>([]);
+    const disPatch = useDispatch<AppDispatch>();
+
+    useEffect(() => {
+        const storedData = localStorage.getItem("favorites");
+        if (storedData) {
+            try {
+                const parsedData = JSON.parse(storedData);
+                if (Array.isArray(parsedData)) setFavors(parsedData);
+            } catch (e) {
+                console.error("Favorites storage is corrupted", e);
+            }
+        }
+    }, []);
+
+    const addToFavors = async (newFavors: Coords) => {
+        try {
+            const result = await disPatch(getLocationDetails(newFavors)).unwrap();
+            const entryWithDetails = {
+                ...newFavors,
+                name: result?.name || "Unknown Location"
+            };
+
+            setFavors((prevFavors) => {
+                const filtered = prevFavors.filter(
+                    (item) => !(item.lat === newFavors.lat && item.lng === newFavors.lng)
+                );
+                const updated = [entryWithDetails, ...filtered].slice(0, 8);
+                localStorage.setItem("favorites", JSON.stringify(updated));
+
+                return updated;
+            });
+
+        } catch (error) {
+            console.error("Failed to add to favorites", error);
+        }
+    };
+
+    return { favors, addToFavors };
+};
+</file>
+
+<file path="src/hooks/useAddToRecent.ts">
+import { AppDispatch, RootState } from "@/app/store";
+import { getLocationDetails } from "@/store/details/api/fetchLocationDetails";
+import { useState, useEffect } from "react";
+import { useDispatch, useSelector } from "react-redux";
+
+type Coords = {
+    name?: string;
+    lat: number;
+    lng: number;
+};
+
+export const useRecentSearches = () => {
+    const [recent, setRecent] = useState<Coords[]>([]);
+    const disPatch = useDispatch<AppDispatch>();
+
+    useEffect(() => {
+        const data = localStorage.getItem("recent");
+        if (data) {
+            try {
+                const parsedData = JSON.parse(data);
+                if (Array.isArray(parsedData)) setRecent(parsedData);
+            } catch (e) { console.error(e); }
+        }
+    }, []);
+
+    const addToRecent = async (newRecent: Coords) => {
+        try {
+            const result = await disPatch(getLocationDetails(newRecent)).unwrap();
+
+            const entryWithDetails = {
+                ...newRecent,
+                name: result?.name || "Unknown Location"
+            };
+
+            setRecent((prev) => {
+                const filtered = prev.filter(
+                    (item) => !(item.lat === newRecent.lat && item.lng === newRecent.lng)
+                );
+                const updated = [entryWithDetails, ...filtered].slice(0, 8);
+                localStorage.setItem("recent", JSON.stringify(updated));
+                return updated;
+            });
+        } catch (error) {
+            console.error("Failed to fetch location details", error);
+        }
+    };
+
+    return { recent, addToRecent };
+};
+</file>
+
+<file path="src/reuseable_components/Suggestion.tsx">
+'use client'
+import React, { useState, useEffect, useMemo } from 'react'
+import { motion } from 'framer-motion'
+import { RootState } from '@/app/store'
+import { useSelector, shallowEqual } from 'react-redux'
+import { useRouter, useSearchParams } from 'next/navigation'
+import Window from './Window'
+
+type Props = {
+    sliceTo: number
+    className?: string;
+}
+
+function Suggestion({ sliceTo, className }: Props) {
+    const [mounted, setMounted] = useState(false);
+
+    const { nearbyPlaces, nearbyLoading } = useSelector(
+        (state: RootState) => ({
+            nearbyPlaces: state.details.nearbyPlaces,
+            nearbyLoading: state.details.nearbyLoading
+        }),
+        shallowEqual
+    )
+
+    const router = useRouter()
+    const searchParams = useSearchParams()
+
+    const currentLat = searchParams.get('lat');
+    const currentLng = searchParams.get('lng');
+    const currentView = searchParams.get('view')
+
+    useEffect(() => {
+        setMounted(true);
+    }, []);
+
+    const filteredPlaces = useMemo(() => {
+        if (!nearbyPlaces) return [];
+        if (!currentLat || !currentLng) return nearbyPlaces;
+
+        const lat = parseFloat(currentLat);
+        const lng = parseFloat(currentLng);
+
+        return nearbyPlaces.filter(place => {
+            const isSelected =
+                Math.abs(place.coords.lat - lat) < 0.0001 &&
+                Math.abs(place.coords.lng - lng) < 0.0001;
+
+            return !isSelected;
+        });
+    }, [nearbyPlaces, currentLat, currentLng]);
+
+    const isView = currentView === 'nearby_places'
+    const noPlaces = !nearbyLoading && filteredPlaces.length === 0
+
+    // منع الـ Hydration error
+    if (!mounted) return <div className='w-full min-h-20' />;
+
+    return (
+        <motion.section
+            className={`w-full hide-scrollbar ${className}`}
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 20 }}
+        >
+            {noPlaces ? (
+                <Window title="Suggestions" className='flex justify-center items-center p-8 text-center text-sm text-muted-foreground'>
+                    Please enable location access to see nearby suggestions.
+                </Window>
+            ) : (
+                <Window title="Suggestions" dontShowTitleAt='nearby_places' className='p-2'>
+                    {nearbyLoading ? (
+                        // Skeleton Loaders
+                        [1, 2].map(i => (
+                            <div key={i} className='w-full h-24 bg-muted animate-pulse mb-2 rounded-xl' />
+                        ))
+                    ) : (
+                        filteredPlaces.slice(0, sliceTo).map((place, index) => (
+                            <div
+                                key={place.id}
+                                onClick={() => router.push(`?lat=${place.coords.lat}&lng=${place.coords.lng}`, { scroll: false })}
+                                className={`w-full py-4 px-3 flex items-center gap-2 active:bg-secondary/50 active:scale-[0.98] hover:bg-secondary/25 transition-all cursor-pointer 
+                                ${index !== (filteredPlaces.slice(0, sliceTo).length - 1) ? 'border-b border-border/50' : ''}`}
+                            >
+                                {/* Icon / Initial Avatar */}
+                                <div className='size-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 shadow-sm'>
+                                    <span className='text-primary text-xs font-black uppercase'>
+                                        {place.shortName?.charAt(0) || place.name?.charAt(0) || '?'}
+                                    </span>
+                                </div>
+
+                                {/* Place Info */}
+                                <div className='flex-1 overflow-hidden'>
+                                    <h3 className='font-black text-sm tracking-tight truncate text-foreground'>
+                                        {place.shortName}
+                                    </h3>
+                                    <p className='text-[10px] text-muted-foreground font-bold uppercase tracking-widest'>
+                                        {place.category}
+                                    </p>
+                                </div>
+                            </div>
+                        ))
+                    )}
+                </Window>
+            )}
+
+            {/* "See more" button logic */}
+            {!isView && !nearbyLoading && filteredPlaces.length > sliceTo && (
+                <div className='w-full justify-center flex py-3'>
+                    <button
+                        type='button'
+                        className='text-primary text-xs hover:underline font-bold'
+                        onClick={() => router.push('?view=nearby_places', { scroll: false })}
+                    >
+                        See more suggestions
+                    </button>
+                </div>
+            )}
+        </motion.section>
+    )
+}
+
+export default React.memo(Suggestion);
+</file>
+
+<file path="src/reuseable_components/Title.tsx">
+import React, { ReactNode } from 'react'
+import { useRouter } from 'next/navigation'
+import { ArrowRight } from 'lucide-react'
+
+type Title = {
+    text: string,
+    className?: string,
+    icon?: ReactNode,
+}
+function Title({ text, icon, className = "" }: Title) {
+    const router = useRouter()
+    return (
+        <div className={`w-full flex justify-between items-center mb-3 ${className}`}>
+            <h1 className='text-2xl font-black tracking-tighter'>{text}</h1>
+            <button
+                type='button'
+                onClick={() => router.back()}
+                className='bg-secondary p-2 rounded-full active:scale-90 transition-transform'
+            >
+                <ArrowRight className="size-5" />
+            </button>
+        </div>
+    )
+}
+
+export default React.memo(Title)
+</file>
+
+<file path="src/reuseable_components/Window.tsx">
+import React, { memo } from 'react'
+import H2 from './H2';
+import { useSearchParams } from 'next/navigation';
+
+interface WindowProps {
+    children: React.ReactNode;
+    className?: string;
+    title?: string;
+    dontShowTitleAt?: string;
+    onClick?: () => void;
+}
+
+function Window({ children, onClick, title, dontShowTitleAt, className = "" }: WindowProps) {
+    const searchParams = useSearchParams();
+    const view = searchParams.get('view');
+
+    const shouldShowTitle = title && (!view || view !== dontShowTitleAt);
+
+    return (
+        <>
+            {shouldShowTitle && <H2>{title}</H2>}
+
+            <div
+                onClick={onClick}
+                className={`bg-window w-full min-h-20 rounded-md mb-2 p-2 ${className}`}
+            >
+                {children}
+            </div>
+        </>
+    )
+}
+
+export default memo(Window)
+</file>
+
+<file path="src/app/page.tsx">
+'use client'
+import { useDispatch, useSelector } from "react-redux";
+import { AppDispatch, RootState } from "./store";
+import { useEffect } from "react";
+import Map from "@/components/map-view/main_map/Map";
+import { fetchCloser } from "@/store/details/api/fetchClosestPlacesThunk";
+import { addToRecentSearched } from "@/store/details/detailsSlice";
+
+type Coords = {
+  name?: string
+  lat: number,
+  lng: number
+}
+
+export default function Home() {
+
+  const dispatch = useDispatch<AppDispatch>()
+
+  // get current coords
+  useEffect(() => {
+    const savedCoords: (string | null) = localStorage.getItem('userCoords')
+    let rightType: (Coords | null) = null; // coords or null
+
+    if (savedCoords) {
+      try {
+        rightType = JSON.parse(savedCoords);
+      } catch (e) {
+        console.error("Parse error", e);
+      }
+    }
+
+    if (rightType) {
+      dispatch(fetchCloser(rightType))
+    } else {
+      // get user coords
+      navigator.geolocation.getCurrentPosition(
+        (p) => {
+          const coords = { lat: p.coords.latitude, lng: p.coords.longitude }
+          dispatch(fetchCloser(coords))
+          localStorage.setItem('userCoords', JSON.stringify(coords))
+        },
+        (e) => {
+          console.log(`cant get this location, ${e}`)
+        }
+      )
+    }
+  }, [])
+
+  // get recent
+  useEffect(() => {
+    const recentFromLocalStorage: (string | null) = localStorage.getItem('recent')
+    let recentSearched: (Coords | null) = null
+    if (recentFromLocalStorage) {
+      recentSearched = JSON.parse(recentFromLocalStorage)
+    }
+    if (recentSearched) {
+      dispatch(addToRecentSearched(recentSearched))
+    }
+  }, [])
+
+  return (
+    <>
+      <Map />
+    </>
+  );
+}
+</file>
+
+<file path="package.json">
+{
+  "name": "path-wise",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint"
+  },
+  "dependencies": {
+    "@heroicons/react": "^2.2.0",
+    "@mapbox/mapbox-gl-rtl-text": "^0.4.0",
+    "@reduxjs/toolkit": "^2.11.2",
+    "axios": "^1.14.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "date-fns": "^4.1.0",
+    "framer-motion": "^12.38.0",
+    "lucide-react": "^1.7.0",
+    "mapbox-gl": "^3.20.0",
+    "maplibre-gl": "^5.21.1",
+    "next": "16.2.2",
+    "radix-ui": "^1.4.3",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "react-map-gl": "^8.1.0",
+    "react-redux": "^9.2.0",
+    "react-scan": "^0.5.3",
+    "shadcn": "^4.1.2",
+    "sonner": "^2.0.7",
+    "tailwind-merge": "^3.5.0",
+    "tailwind-scrollbar-hide": "^4.0.0",
+    "tw-animate-css": "^1.4.0",
+    "vaul": "^1.1.2"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/mapbox-gl": "^3.4.1",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@welldone-software/why-did-you-render": "^10.0.1",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.2",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
 }
 </file>
 
@@ -2569,6 +2775,16 @@ export default function page() {
   --sidebar-ring: oklch(0.556 0 0);
 }
 
+.hide-scrollbar::-webkit-scrollbar {
+  display: none !important;
+}
+
+.hide-scrollbar {
+  -ms-overflow-style: none !important;
+  scrollbar-width: none !important;
+}
+
+
 button {
   cursor: pointer;
 }
@@ -2679,81 +2895,13 @@ export default function RootLayout({
 }
 </file>
 
-<file path="src/app/page.tsx">
-'use client'
-import { useDispatch, useSelector } from "react-redux";
-import { AppDispatch, RootState } from "./store";
-import { useEffect } from "react";
-import Map from "@/components/map-view/main_map/Map";
-import { fetchCloser } from "@/store/details/api/fetchClosestPlacesThunk";
-import { addToRecentSearched } from "@/store/details/detailsSlice";
-
-type Coords = {
-  name?: string
-  lat: number,
-  lng: number
-}
-
-export default function Home() {
-
-  const dispatch = useDispatch<AppDispatch>()
-
-  // get current coords
-  useEffect(() => {
-    const savedCoords: (string | null) = localStorage.getItem('userCoords')
-    let rightType: (Coords | null) = null; // coords or null
-
-    if (savedCoords) {
-      try {
-        rightType = JSON.parse(savedCoords);
-      } catch (e) {
-        console.error("Parse error", e);
-      }
-    }
-
-    if (rightType) {
-      dispatch(fetchCloser(rightType))
-    } else {
-      // get user coords
-      navigator.geolocation.getCurrentPosition(
-        (p) => {
-          const coords = { lat: p.coords.latitude, lng: p.coords.longitude }
-          dispatch(fetchCloser(coords))
-          localStorage.setItem('userCoords', JSON.stringify(coords))
-        },
-        (e) => {
-          console.log(`cant get this location, ${e}`)
-        }
-      )
-    }
-  }, [])
-
-  // get recent
-  useEffect(() => {
-    const recentFromLocalStorage: (string | null) = localStorage.getItem('recent')
-    let recentSearched: (Coords | null) = null
-    if (recentFromLocalStorage) {
-      recentSearched = JSON.parse(recentFromLocalStorage)
-    }
-    if (recentSearched) {
-      dispatch(addToRecentSearched(recentSearched))
-    }
-  }, [])
-
-  return (
-    <>
-      <Map />
-    </>
-  );
-}
-</file>
-
 <file path="src/app/store.ts">
 import { configureStore } from '@reduxjs/toolkit'
 import langReducer from '../store/lang/languageSlice'
 import themeReducer from '../store/theme/themeSlice'
 import locationReducer from '../store/location/locationSlice'
 import detailsReducer from '../store/details/detailsSlice'
+import dataReducer from '../store/global_data/dataSlice'
 
 export const store = configureStore({
     reducer: {
@@ -2761,6 +2909,7 @@ export const store = configureStore({
         theme: themeReducer,
         location: locationReducer,
         details: detailsReducer,
+        data: dataReducer,
     },
 })
 
@@ -2823,7 +2972,6 @@ const Btns = memo(function Btns() {
         );
     };
 
-    // console.log('Btns.tsx rendered')
     return (
         <div className="bg-card/98 absolute right-1 top-1 md:right-8 md:top-8 z-20 flex flex-col gap-0 pointer-events-auto rounded-[8px] overflow-hidden">
             {/* theme-btn */}
@@ -2854,58 +3002,6 @@ const Btns = memo(function Btns() {
 })
 
 export default Btns;
-</file>
-
-<file path="package.json">
-{
-  "name": "path-wise",
-  "version": "0.1.0",
-  "private": true,
-  "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "eslint"
-  },
-  "dependencies": {
-    "@heroicons/react": "^2.2.0",
-    "@mapbox/mapbox-gl-rtl-text": "^0.4.0",
-    "@reduxjs/toolkit": "^2.11.2",
-    "axios": "^1.14.0",
-    "class-variance-authority": "^0.7.1",
-    "clsx": "^2.1.1",
-    "date-fns": "^4.1.0",
-    "framer-motion": "^12.38.0",
-    "lucide-react": "^1.7.0",
-    "mapbox-gl": "^3.20.0",
-    "maplibre-gl": "^5.21.1",
-    "next": "16.2.2",
-    "radix-ui": "^1.4.3",
-    "react": "19.2.4",
-    "react-dom": "19.2.4",
-    "react-map-gl": "^8.1.0",
-    "react-redux": "^9.2.0",
-    "react-scan": "^0.5.3",
-    "shadcn": "^4.1.2",
-    "sonner": "^2.0.7",
-    "tailwind-merge": "^3.5.0",
-    "tailwind-scrollbar-hide": "^4.0.0",
-    "tw-animate-css": "^1.4.0",
-    "vaul": "^1.1.2"
-  },
-  "devDependencies": {
-    "@tailwindcss/postcss": "^4",
-    "@types/mapbox-gl": "^3.4.1",
-    "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "@welldone-software/why-did-you-render": "^10.0.1",
-    "eslint": "^9",
-    "eslint-config-next": "16.2.2",
-    "tailwindcss": "^4",
-    "typescript": "^5"
-  }
-}
 </file>
 
 </files>

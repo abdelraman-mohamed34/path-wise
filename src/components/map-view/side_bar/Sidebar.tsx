@@ -1,4 +1,5 @@
 'use client'
+
 import React, { useState, useEffect, useRef } from 'react'
 import { motion, useAnimationControls } from 'framer-motion'
 import { useOutsideClick } from '@/hooks/useOutsideClick'
@@ -13,7 +14,6 @@ import Favorite from './_components/results/categories/Favorite'
 function Sidebar() {
 
     const SearchParams = useSearchParams()
-
 
     const [activeSlide, setActiveSlide] = useState<boolean>(false)
     const controls = useAnimationControls()
@@ -64,6 +64,8 @@ function Sidebar() {
         }
     });
 
+    console.log('sidebar rendered')
+
     return (
         <>
             <aside className="absolute inset-x-0 bottom-0 md:inset-y-0 md:left-0 md:w-96 md:z-30 z-30 md:p-4 pointer-events-none">
@@ -98,6 +100,7 @@ function Sidebar() {
 
                             {/* 2 */}
                             <div className="flex-1 overflow-hidden mt-4">
+                                {/* the problem */}
                                 <Results />
                             </div>
 

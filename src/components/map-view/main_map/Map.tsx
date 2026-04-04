@@ -23,6 +23,7 @@ export default function Map() {
             : `https://api.maptiler.com/maps/streets-v2/style.json?key=${map_key}`
     ), [mode, map_key]);
 
+
     return (
         <main className="relative h-[100dvh] w-full overflow-hidden bg-background">
             <MapProvider>
@@ -33,14 +34,14 @@ export default function Map() {
                         />
                     </Suspense>
                 </div>
-
-                <div className="relative z-10 pointer-events-none h-full w-full">
-                    <Suspense>
-                        <Sidebar />
-                    </Suspense>
-                    <Btns />
-                </div>
             </MapProvider>
+
+            <div className="relative z-10 pointer-events-none h-full w-full">
+                <Suspense>
+                    <Sidebar />
+                </Suspense>
+                <Btns />
+            </div>
         </main>
     );
 }

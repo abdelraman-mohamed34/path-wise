@@ -50,7 +50,6 @@ const Btns = memo(function Btns() {
         );
     };
 
-    // console.log('Btns.tsx rendered')
     return (
         <div className="bg-card/98 absolute right-1 top-1 md:right-8 md:top-8 z-20 flex flex-col gap-0 pointer-events-auto rounded-[8px] overflow-hidden">
             {/* theme-btn */}
