@@ -2,11 +2,10 @@
 
 import React, { useCallback, memo } from 'react'
 import Window from '@/reuseable_components/Window';
-import { StarIcon as StarSolid } from '@heroicons/react/24/solid';
 import QuickBtns from './quick_access/QuickBtns';
 import Suggestion from '@/reuseable_components/Suggestion';
 import { motion } from 'framer-motion';
-import { MapPin, Clock, Copy, X, Wind } from 'lucide-react';
+import { MapPin, Clock, Copy, X, Star } from 'lucide-react';
 import { toast } from 'sonner';
 import TripInfo from '@/components/map-view/main_map/TripInfo';
 import { useSelector } from 'react-redux';
@@ -43,7 +42,7 @@ const DetailCardComponent = ({ location, onBack }: DetailCardProps) => {
                         {location?.name || "Selected Location"}
                     </h2>
                     <div className='flex items-center gap-2 mt-1'>
-                        <StarSolid className="size-4 text-amber-500 shrink-0" />
+                        <Star className="size-4 text-amber-500 shrink-0" />
                         <span className="text-sm font-bold text-foreground">{location?.rating || "0.0"}</span>
                         <span className="text-[10px] text-muted-foreground font-medium truncate">
                             • {location?.reviewsCount || 0} reviews

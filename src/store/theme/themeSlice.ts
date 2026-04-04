@@ -17,7 +17,7 @@ const initialState: ThemeState = {
     mode: getInitialTheme(),
 }
 
-export const themeSlice = createSlice({
+const themeSlice = createSlice({
     name: 'theme',
     initialState,
     reducers: {

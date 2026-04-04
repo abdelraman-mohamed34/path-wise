@@ -140,19 +140,6 @@ button {
 
   body {
     @apply bg-background text-foreground;
-    font-family: sans-bold;
-    font-family: sans;
-  }
-
-
-  @font-face {
-    font-family: sans;
-    src: url('../../public/fonts/english/GoogleSans-Regular.ttf')
-  }
-
-  @font-face {
-    font-family: sans-bold;
-    src: url('../../public/fonts/english/GoogleSans-Medium.ttf')
   }
 
   html {
