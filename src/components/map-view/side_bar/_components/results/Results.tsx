@@ -2,7 +2,6 @@
 import { useSelector, useDispatch } from 'react-redux'
 import { RootState, AppDispatch } from '@/app/store'
 import { clearDetails } from '@/store/details/detailsSlice'
-import { MapPinIcon } from '@heroicons/react/24/outline'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useEffect, memo } from 'react'
 
@@ -11,16 +10,31 @@ import { DetailCard } from './DetailCard'
 import { LocationCard } from './LocationCard'
 import MyCategory from './categories/MyCategory'
 import Suggestion from '@/reuseable_components/Suggestion'
+import { deleteSearch } from '@/store/global_data/dataSlice'
 
-interface ResultsProps {
-    searchTerm: string;
-    setSearchTerm: (value: string) => void;
-}
+const renderSkeleton = () => (
+    <div className="space-y-3 px-1">
+        {[1, 2, 3, 4, 5].map((i) => (
+            <div
+                key={i}
+                className="flex items-center gap-3 p-3 bg-secondary/30 rounded-xl border border-border/20 animate-pulse"
+            >
+                <div className="size-9 shrink-0 rounded-full bg-muted/50" />
 
-function Results({ searchTerm, setSearchTerm }: ResultsProps) {
+                <div className="flex flex-col flex-1 gap-2 overflow-hidden">
+                    <div className="h-3.5 w-3/4 bg-muted/60 rounded-md" />
+                    <div className="h-2.5 w-1/2 bg-muted/40 rounded-md" />
+                </div>
+            </div>
+        ))}
+    </div>
+);
+
+function Results() {
     const dispatch = useDispatch<AppDispatch>()
     const { results, status } = useSelector((state: RootState) => state.location);
     const { selectedLocation, status: detailsStatus } = useSelector((state: RootState) => state.details);
+    const searchTerm = useSelector((d: RootState) => d.data.inputSearch)
 
     const router = useRouter()
     const searchParams = useSearchParams()
@@ -41,29 +55,15 @@ function Results({ searchTerm, setSearchTerm }: ResultsProps) {
 
     const handleGetLocationDetails = (coords: { lat: number; lng: number }) => {
         router.push(`?lat=${coords.lat}&lng=${coords.lng}`, { scroll: false });
-        setSearchTerm('')
+        dispatch(deleteSearch())
     };
-
-    const renderSkeleton = () => (
-        <div className="space-y-4 px-2">
-            {[1, 2, 3].map((i) => (
-                <div key={i} className="p-4 bg-secondary/20 rounded-2xl border border-border/50 animate-pulse flex gap-4">
-                    <div className="size-10 bg-muted rounded-xl" />
-                    <div className="flex-1 space-y-2">
-                        <div className="h-4 w-1/2 bg-muted rounded" />
-                        <div className="h-3 w-1/3 bg-muted rounded" />
-                    </div>
-                </div>
-            ))}
-        </div>
-    );
 
     if (status === 'loading' || detailsStatus === 'loading') return renderSkeleton()
 
     return (
-        <div className="flex-1 overflow-y-auto custom-scrollbar">
+        <div className="flex-1">
 
-            {searchTerm.trim() !== "" ? (
+            {searchTerm && searchTerm.trim() !== "" ? (
                 <>
                     {results && results.length > 0 ? (
                         <div className="space-y-3 animate-in fade-in duration-500">
@@ -82,7 +82,6 @@ function Results({ searchTerm, setSearchTerm }: ResultsProps) {
                     {selectedLocation ? (
                         <div className='space-y-3'>
                             <DetailCard location={selectedLocation} onBack={onBackFunction} />
-                            <Suggestion sliceTo={3} />
                         </div>
                     ) : (
                         status === 'idle' && (

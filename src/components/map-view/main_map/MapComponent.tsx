@@ -1,6 +1,6 @@
 "use client";
 import MapGL, { Marker, useMap } from "react-map-gl/maplibre";
-import React, { memo, useEffect, useCallback } from "react";
+import React, { memo, useEffect, useCallback, useState } from "react";
 import { useDispatch } from "react-redux";
 import { AppDispatch } from "@/app/store";
 import { getLocationDetails } from "@/store/details/api/fetchLocationDetails";
@@ -8,43 +8,62 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useRecentSearches } from "@/hooks/useAddToRecent";
 
 interface MapComponentProps {
-    viewState: any;
-    onMove: (e: any) => void;
     mapStyle: string;
 }
 
-const MapComponent = memo(({ viewState, onMove, mapStyle }: MapComponentProps) => {
+const MapComponent = memo(({ mapStyle }: MapComponentProps) => {
+
+    const [viewState, setViewState] = useState({
+        longitude: 31.2357,
+        latitude: 30.0444,
+        zoom: 10
+    });
+
     const dispatch = useDispatch<AppDispatch>();
+    const searchParams = useSearchParams();
+
     const router = useRouter();
     const { "main-map": map } = useMap();
-    const searchParams = useSearchParams();
 
     const URLLat = searchParams.get('lat');
     const URLLng = searchParams.get('lng');
     const isLocationMine = searchParams.get('m');
 
-    const lat = URLLat ? parseFloat(URLLat) : null;
-    const lng = URLLng ? parseFloat(URLLng) : null;
+    const latitude = URLLat ? parseFloat(URLLat) : null;
+    const longitude = URLLng ? parseFloat(URLLng) : null;
     const { addToRecent } = useRecentSearches()
 
+    // if has URL
     useEffect(() => {
-        if (lat !== null && lng !== null && !isNaN(lat) && !isNaN(lng)) {
-            const coords = { lat, lng };
-            dispatch(getLocationDetails(coords));
+        if (latitude && longitude) {
+            const coords = { latitude, longitude };
 
-            // Fly to location
-            if (map) {
-                map.flyTo({
-                    center: [lng, lat],
-                    zoom: 16,
-                    duration: 2000,
-                    essential: true,
-                    padding: { bottom: 200 }
-                });
-                addToRecent({ lat: lat, lng: lng })
+            const isDifferent =
+                Math.abs(viewState.latitude - latitude) > 0.0001 ||
+                Math.abs(viewState.longitude - longitude) > 0.0001;
+
+            if (isDifferent) {
+                setViewState({ ...coords, zoom: 16 })
+                dispatch(getLocationDetails({ lat: latitude, lng: longitude }));
+                // Fly to location
+                if (map) {
+                    map.flyTo({
+                        center: [longitude, latitude],
+                        zoom: 16,
+                        duration: 2000,
+                        essential: true,
+                        padding: { bottom: 200 }
+                    });
+                    addToRecent({ lat: latitude, lng: longitude })
+                }
             }
         }
-    }, [lat, lng, dispatch]);
+    }, [latitude, longitude, dispatch]);
+
+
+    const handleMove = useCallback((e: any) => {
+        setViewState(e.viewState);
+    }, []);
 
     const handleMapClick = useCallback((e: any) => {
         const { lng, lat } = e.lngLat;
@@ -55,13 +74,13 @@ const MapComponent = memo(({ viewState, onMove, mapStyle }: MapComponentProps) =
         <MapGL
             {...viewState}
             id="main-map"
-            onMove={onMove}
+            onMove={handleMove}
             onClick={handleMapClick}
             mapStyle={mapStyle}
             style={{ width: "100%", height: "100%" }}
         >
-            {lat && lng && (
-                <Marker latitude={lat} longitude={lng} anchor="bottom">
+            {latitude && longitude && (
+                <Marker latitude={latitude} longitude={longitude} anchor="bottom">
                     {isLocationMine === 'true' ? (
                         <div className="relative flex items-center justify-center">
                             <span className="absolute size-10 bg-blue-500/30 rounded-full animate-ping" />

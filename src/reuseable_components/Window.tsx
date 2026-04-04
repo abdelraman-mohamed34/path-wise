@@ -1,21 +1,28 @@
-import React from 'react'
+import React, { memo } from 'react'
 import H2 from './H2';
+import { useSearchParams } from 'next/navigation';
 
 interface WindowProps {
     children: React.ReactNode;
     className?: string;
     title?: string;
+    dontShowTitleAt?: string;
     onClick?: () => void;
 }
 
-function Window({ children, onClick, title, className = "" }: WindowProps) {
-    return (
+function Window({ children, onClick, title, dontShowTitleAt, className = "" }: WindowProps) {
+    const searchParams = useSearchParams();
+    const view = searchParams.get('view');
 
+    const shouldShowTitle = title && (!view || view !== dontShowTitleAt);
+
+    return (
         <>
-            {title && <H2>{title}</H2>}
+            {shouldShowTitle && <H2>{title}</H2>}
+
             <div
                 onClick={onClick}
-                className={`bg-window w-full min-h-20 rounded-md mb-2 ${className}`}
+                className={`bg-window w-full min-h-20 rounded-md mb-2 p-2 ${className}`}
             >
                 {children}
             </div>
@@ -23,4 +30,4 @@ function Window({ children, onClick, title, className = "" }: WindowProps) {
     )
 }
 
-export default React.memo(Window)
+export default memo(Window)

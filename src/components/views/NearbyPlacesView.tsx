@@ -17,7 +17,7 @@ function NearbyPlacesView() {
 
             <div className='w-full space-y-8'>
                 {/* places  */}
-                <section className='w-full overflow-y-auto'>
+                <section className='w-full overflow-y-auto no-scrollbar'>
                     <div className='flex flex-col rounded-md overflow-y-auto'>
                         {nearbyLoading ? (
                             [1, 2, 3, 4].map(i => (

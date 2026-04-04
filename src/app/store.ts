@@ -3,6 +3,7 @@ import langReducer from '../store/lang/languageSlice'
 import themeReducer from '../store/theme/themeSlice'
 import locationReducer from '../store/location/locationSlice'
 import detailsReducer from '../store/details/detailsSlice'
+import dataReducer from '../store/global_data/dataSlice'
 
 export const store = configureStore({
     reducer: {
@@ -10,6 +11,7 @@ export const store = configureStore({
         theme: themeReducer,
         location: locationReducer,
         details: detailsReducer,
+        data: dataReducer,
     },
 })
 

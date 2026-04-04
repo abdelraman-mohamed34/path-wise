@@ -1,8 +1,6 @@
 'use client'
 import React, { useState, useEffect, useRef } from 'react'
-import { useDispatch, useSelector } from 'react-redux'
-import { RootState } from '@/app/store'
-import { motion, AnimatePresence, useAnimationControls } from 'framer-motion'
+import { motion, useAnimationControls } from 'framer-motion'
 import { useOutsideClick } from '@/hooks/useOutsideClick'
 import { useSearchParams } from 'next/navigation'
 import { useRouter } from 'next/navigation'
@@ -16,16 +14,17 @@ function Sidebar() {
 
     const SearchParams = useSearchParams()
 
-    const [searchTerm, setSearchTerm] = useState<string>("")
+
     const [activeSlide, setActiveSlide] = useState<boolean>(false)
     const controls = useAnimationControls()
     const sidebarRef = useRef<HTMLDivElement>(null);
     const router = useRouter()
+
     // Logic positions for reusability
     const positions = {
         bottom: '82vh',
         middle: '50vh',
-        top: '5vh'
+        top: '10vh'
     }
 
     const long = SearchParams.get('lng')
@@ -41,7 +40,7 @@ function Sidebar() {
         }
     }, [selectedLocation, controls])
 
-    const handleDragEnd = (event: any, info: any) => {
+    const handleDragEnd = (info: any) => {
         const offsetThreshold = 100
         const velocityThreshold = 500
 
@@ -56,13 +55,15 @@ function Sidebar() {
     }
 
     // Close when clicking outside the sidebarRef
+
     useOutsideClick(sidebarRef, () => {
-        if (selectedLocation || activeSlide) {
+        if (selectedLocation || activeSlide || view) {
             setActiveSlide(false);
             router.push('/', { scroll: false });
             controls.start({ y: positions.bottom });
         }
     });
+
     return (
         <>
             <aside className="absolute inset-x-0 bottom-0 md:inset-y-0 md:left-0 md:w-96 md:z-30 z-30 md:p-4 pointer-events-none">
@@ -75,7 +76,7 @@ function Sidebar() {
                     animate={controls}
                     initial={{ y: positions.bottom }}
                     onDragEnd={handleDragEnd}
-                    className="h-[100vh] md:h-full w-full bg-card backdrop-blur-xl md:border border-border shadow-2xl rounded-t-[24px] md:rounded-3xl pointer-events-auto md:p-5 p-4 pb-10 flex flex-col md:gap-6 md:!transform-none space-y-3"
+                    className="h-[100vh] md:h-full w-full bg-card backdrop-blur-xl md:border border-border shadow-2xl rounded-t-[24px] md:rounded-3xl pointer-events-auto md:p-5 p-4 pb-10 flex flex-col md:gap-6 md:!transform-none space-y-3 overflow-hidden"
                     style={{ touchAction: 'none' }}
                 >
 
@@ -93,11 +94,11 @@ function Sidebar() {
                     ) : (
                         <div className="flex flex-col">
                             {/* 1 */}
-                            {!selectedLocation && <SearchInput searchTerm={searchTerm} setSearchTerm={setSearchTerm} />}
+                            {!selectedLocation && <SearchInput />}
 
                             {/* 2 */}
                             <div className="flex-1 overflow-hidden mt-4">
-                                <Results searchTerm={searchTerm} setSearchTerm={setSearchTerm} />
+                                <Results />
                             </div>
 
                         </div>
@@ -109,4 +110,4 @@ function Sidebar() {
     )
 }
 
-export default React.memo(Sidebar)
+export default Sidebar

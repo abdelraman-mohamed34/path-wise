@@ -1,31 +1,29 @@
 'use client'
-import { AppDispatch } from '@/app/store';
-import useDebounce from '@/hooks/useDebounce';
-import { searchLocation } from '@/store/location/locationSlice';
-import { MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 import React, { useEffect, useState } from 'react'
-import { useDispatch } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux'
+import { AppDispatch, RootState } from '@/app/store'
+import { MagnifyingGlassIcon } from '@heroicons/react/24/outline'
+import useDebounce from '@/hooks/useDebounce'
+import { setSearch } from '@/store/global_data/dataSlice' // تأكد من المسار
+import { searchLocation } from '@/store/location/locationSlice'
 
-interface ResultsProps {
-    searchTerm: string;
-    setSearchTerm: (value: string) => void;
-}
-
-function SearchInput({ searchTerm, setSearchTerm }: ResultsProps) {
-
+function SearchInput() {
     const dispatch = useDispatch<AppDispatch>()
+    const [typed, setTyped] = useState('')
 
-    const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setSearchTerm(e.target.value)
-    }
+    const debouncedSearch = useDebounce(typed, 300)
 
-    const debouncedSearch = useDebounce(searchTerm, 300);
     useEffect(() => {
-        if (!debouncedSearch || !searchTerm || debouncedSearch.length < 2) return
-        dispatch(searchLocation(debouncedSearch))
+
+        dispatch(setSearch(debouncedSearch))
+        if (debouncedSearch && debouncedSearch.length >= 2) {
+            dispatch(searchLocation(debouncedSearch))
+        }
     }, [debouncedSearch, dispatch])
 
-    console.log('SearchInput.tsx rendered')
+    const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setTyped(e.target.value)
+    }
 
     return (
         <div className="relative group mb-3">
@@ -33,7 +31,7 @@ function SearchInput({ searchTerm, setSearchTerm }: ResultsProps) {
             <input
                 type="text"
                 placeholder="Search for a place..."
-                value={searchTerm}
+                value={typed}
                 onChange={handleSearch}
                 className="md:text-xd text-[13px] w-full h-[36px] md:pl-10 pl-8 pr-4 bg-secondary rounded-[8px] focus:outline-none focus:ring-1 focus:ring-primary/20 transition-all"
             />

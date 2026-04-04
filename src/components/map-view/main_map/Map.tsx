@@ -17,23 +17,11 @@ export default function Map() {
     const mode = useSelector((state: RootState) => state.theme.mode);
     const map_key = process.env.NEXT_PUBLIC_MAP_KEY;
 
-    const [viewState, setViewState] = useState({
-        lng: 31.2357,
-        lat: 30.0444,
-        zoom: 10
-    });
-
-    const handleMove = useCallback((e: any) => {
-        setViewState(e.viewState);
-    }, []);
-
     const mapStyle = useMemo(() => (
         mode === 'dark'
             ? `https://api.maptiler.com/maps/streets-v2-dark/style.json?key=${map_key}`
             : `https://api.maptiler.com/maps/streets-v2/style.json?key=${map_key}`
     ), [mode, map_key]);
-
-
 
     return (
         <main className="relative h-[100dvh] w-full overflow-hidden bg-background">
@@ -41,8 +29,6 @@ export default function Map() {
                 <div className="absolute inset-0 z-0">
                     <Suspense>
                         <MapComponent
-                            viewState={viewState}
-                            onMove={handleMove}
                             mapStyle={mapStyle}
                         />
                     </Suspense>

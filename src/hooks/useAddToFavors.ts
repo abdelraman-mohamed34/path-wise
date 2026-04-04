@@ -1,4 +1,4 @@
-import { AppDispatch, RootState } from "@/app/store";
+import { AppDispatch } from "@/app/store";
 import { getLocationDetails } from "@/store/details/api/fetchLocationDetails";
 import { useState, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
@@ -11,42 +11,44 @@ type Coords = {
 
 export const useFavorites = () => {
     const [favors, setFavors] = useState<Coords[]>([]);
-    const details = useSelector((d: RootState) => d.details.selectedLocation);
     const disPatch = useDispatch<AppDispatch>();
 
     useEffect(() => {
-        const data = localStorage.getItem("favorites");
-        if (data) {
+        const storedData = localStorage.getItem("favorites");
+        if (storedData) {
             try {
-                const parsedData = JSON.parse(data);
-                if (Array.isArray(parsedData)) {
-                    setFavors(parsedData);
-                }
+                const parsedData = JSON.parse(storedData);
+                if (Array.isArray(parsedData)) setFavors(parsedData);
             } catch (e) {
                 console.error("Favorites storage is corrupted", e);
             }
         }
     }, []);
 
-    const addToFavors = (newFavors: Coords) => {
-        disPatch(getLocationDetails(newFavors));
-
-        setFavors((prev) => {
-            const filtered = prev.filter(
-                (item) => !(item.lat === newFavors.lat && item.lng === newFavors.lng)
-            );
-
+    const addToFavors = async (newFavors: Coords) => {
+        try {
+            const result = await disPatch(getLocationDetails(newFavors)).unwrap();
             const entryWithDetails = {
                 ...newFavors,
-                name: newFavors.name || details?.name || "Saved Location"
+                name: result?.name || "Unknown Location"
             };
 
-            const updated = [entryWithDetails, ...filtered].slice(0, 8);
-            localStorage.setItem("favorites", JSON.stringify(updated));
+            setFavors((prevFavors) => {
+                const filtered = prevFavors.filter(
+                    (item) => !(item.lat === newFavors.lat && item.lng === newFavors.lng)
+                );
+                const updated = [entryWithDetails, ...filtered].slice(0, 8);
+                localStorage.setItem("favorites", JSON.stringify(updated));
 
-            return updated;
-        });
+                return updated;
+            });
+
+        } catch (error) {
+            console.error("Failed to add to favorites", error);
+        }
     };
 
     return { favors, addToFavors };
 };
+
+

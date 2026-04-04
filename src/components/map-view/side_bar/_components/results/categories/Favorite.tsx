@@ -4,6 +4,7 @@ import { useFavorites } from '@/hooks/useAddToFavors'
 import H2 from '@/reuseable_components/H2'
 import Suggestion from '@/reuseable_components/Suggestion'
 import Window from '@/reuseable_components/Window'
+import { Plus } from 'lucide-react'
 import { useRouter, useSearchParams } from 'next/navigation'
 
 function Favorite({ sliceFavorsTo }: { sliceFavorsTo: number }) {
@@ -27,14 +28,14 @@ function Favorite({ sliceFavorsTo }: { sliceFavorsTo: number }) {
         <div className="w-full">
             <div className='w-full flex justify-between'>
                 <H2>Favorites</H2>
-                {!(view || view === 'recent') && favors.length > 0 && (
-                    <button onClick={showAllFavors} className="group flex items-center gap-1 text-[#0C79FE] hover:underline hover:underline-offset-4 transition-all md:text-[15px] text-[12px]">
+                {!(view || view === 'favorites') && favors.length > 0 && (
+                    <button type='button' onClick={showAllFavors} className="group flex items-center gap-1 text-[#0C79FE] hover:underline hover:underline-offset-4 transition-all md:text-[15px] text-[12px]">
                         <span>see all</span>
                     </button>
                 )}
             </div>
 
-            <Window className='p-2 mb-5 flex justify-center items-center'>
+            <Window className='p-2 py-4 mb-5 flex justify-center items-center'>
                 <div className="flex flex-col gap-2 w-full">
                     {favors && favors.length > 0 ? (
                         favors.slice(0, sliceFavorsTo).map((item) => (
@@ -58,8 +59,11 @@ function Favorite({ sliceFavorsTo }: { sliceFavorsTo: number }) {
                             </div>
                         ))
                     ) : (
-                        <div className="flex justify-center items-center w-full h-full">
-                            <h1 className="md:text-xs text-[10px] text-muted-foreground uppercase tracking-widest">No Favorites yet</h1>
+                        <div className="flex flex-col justify-center items-center w-full h-full">
+                            <button type='button' onClick={() => router.push('?view=nearby_places')} className='p-3 rounded-full flex justify-center items-center mb-1 bg-secondary/70 active:scale-[0.98] transition-all active:bg-secondary hover:bg-secondary'>
+                                <Plus />
+                            </button>
+                            <h1 className="md:text-xs text-[10px] text-muted-foreground uppercase tracking-widest">Add</h1>
                         </div>
                     )}
                 </div>

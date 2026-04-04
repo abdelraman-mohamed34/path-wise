@@ -53,7 +53,21 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col bg-background text-foreground transition-colors duration-300">
         <Wrapper>
           {children}
-          <Toaster position="top-center" richColors />
+          <Toaster
+            position="top-center"
+            richColors
+            toastOptions={{
+              className: "border border-border/50 backdrop-blur-md bg-window/80 text-foreground rounded-xl shadow-2xl font-sans",
+              descriptionClassName: "text-muted-foreground text-[10px]",
+              style: {
+                padding: '15px 16px',
+                backgroundColor: 'var(--card)',
+                color: 'var(--card-foreground)',
+                border: '1px solid var(--border)',
+                borderRadius: '12px',
+              },
+            }}
+          />
         </Wrapper>
       </body>
     </html >

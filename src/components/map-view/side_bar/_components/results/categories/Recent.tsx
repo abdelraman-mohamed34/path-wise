@@ -24,7 +24,7 @@ function Recent({ sliceRecentTo }: { sliceRecentTo: number }) {
             <div className='w-full flex justify-between'>
                 <H2>Recent</H2>
                 {!(view || view === 'recent') && recent.length > 0 && (
-                    <button onClick={showAllRecent} className="group flex items-center gap-1 text-[#0C79FE] hover:underline hover:underline-offset-4 transition-all md:text-[15px] text-[12px]">
+                    <button type='button' onClick={showAllRecent} className="group flex items-center gap-1 text-[#0C79FE] hover:underline hover:underline-offset-4 transition-all md:text-[15px] text-[12px]">
                         <span>see all</span>
                     </button>
                 )}

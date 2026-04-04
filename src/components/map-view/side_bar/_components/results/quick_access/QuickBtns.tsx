@@ -21,13 +21,14 @@ function QuickBtns({ coords }: Props) {
         <div className="flex gap-2 w-full relative">
 
             {/* start */}
-            <button className="flex-1 flex justify-center items-center gap-2 py-3 bg-[#0C79FE] text-white rounded-md hover:brightness-110 active:scale-[0.98] transition-all uppercase text-[11px] font-bold tracking-[2px] shadow-lg shadow-blue-500/20">
+            <button type='button' className="flex-1 flex justify-center items-center gap-2 py-3 bg-[#0C79FE] text-white rounded-md hover:brightness-110 active:scale-[0.98] transition-all uppercase text-[11px] font-bold tracking-[2px] shadow-lg shadow-blue-500/20">
                 <CarFront size={18} strokeWidth={2.5} />
                 <span>Start</span>
             </button>
 
             {/* more */}
             <button
+                type='button'
                 onClick={handleShowOptions}
                 aria-label="More options"
                 className={`p-3 rounded-md transition-all flex items-center justify-center active:scale-[0.95] bg-secondary/80 hover:bg-secondary/40`}
@@ -38,7 +39,6 @@ function QuickBtns({ coords }: Props) {
             <AnimatePresence>
                 {showOptions && (
                     <Options
-                        showOptions={showOptions}
                         setShowOptions={setShowOptions}
                         coords={coords}
                     />

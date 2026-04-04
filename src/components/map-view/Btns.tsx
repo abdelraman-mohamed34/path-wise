@@ -1,11 +1,10 @@
 'use client'
 import { MapPinIcon, MoonIcon, Router, SunIcon } from 'lucide-react'
-import React, { memo, useEffect, useState, useMemo } from 'react'
+import React, { memo, useEffect, useState } from 'react'
 import { toggleTheme } from "@/store/theme/themeSlice";
 import { useDispatch, useSelector } from "react-redux";
 import { RootState } from '@/app/store';
 import { useMap } from 'react-map-gl/maplibre';
-import { setUserLocation } from '@/store/location/locationSlice';
 import { useRouter } from 'next/navigation';
 import { useRecentSearches } from '@/hooks/useAddToRecent';
 
@@ -25,13 +24,10 @@ const Btns = memo(function Btns() {
 
     const handleGoToUserLocation = () => {
         if (!map || !navigator.geolocation) return;
-
         const savedUserCoords = localStorage.getItem('userCoords');
-
         if (savedUserCoords) {
             try {
                 const { lat, lng }: { lat: number, lng: number } = JSON.parse(savedUserCoords);
-                console.log(lat, lng)
                 router.push(`?lat=${lat}&lng=${lng}&m=true`);
                 addToRecent({ lat: lat, lng: lng })
                 return;
@@ -56,9 +52,10 @@ const Btns = memo(function Btns() {
 
     // console.log('Btns.tsx rendered')
     return (
-        <div className="bg-card/98 absolute right-2 top-1 md:right-8 md:top-8 z-20 flex flex-col gap-0 pointer-events-auto rounded-[8px] overflow-hidden">
+        <div className="bg-card/98 absolute right-1 top-1 md:right-8 md:top-8 z-20 flex flex-col gap-0 pointer-events-auto rounded-[8px] overflow-hidden">
             {/* theme-btn */}
             <button
+                type='button'
                 onClick={() => dispatch(toggleTheme())}
                 className="size-12 md:size-14 border-b border-border flex items-center justify-center active:scale-90 transition-all"
             >
@@ -73,6 +70,7 @@ const Btns = memo(function Btns() {
 
             {/* location-btn */}
             <button
+                type='button'
                 onClick={handleGoToUserLocation}
                 className="size-12 md:size-14 flex items-center justify-center hover:bg-secondary active:scale-90 transition-all text-foreground"
             >
