@@ -1,3 +1,5 @@
+// src/store/location/locationSlice.ts
+
 "use client";
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import axios from 'axios';
@@ -6,6 +8,7 @@ type Coords = {
     lat: number;
     lng: number;
 }
+
 type Location = {
     id: string;
     name: string;
@@ -15,7 +18,7 @@ type Location = {
 type RouteState = {
     userLocation: Coords | null;
     results: Location[];
-    locations: Location[],
+    locations: Location[];
     optimizedOrder: string[];
     status: 'idle' | 'loading' | 'success' | 'error';
     thisLocationIsMine: boolean;
@@ -39,17 +42,18 @@ export const searchLocation = createAsyncThunk(
                 `https://api.maptiler.com/geocoding/${encodeURIComponent(query)}.json?key=${API_KEY}`
             );
 
-            const feature = response.data.features[0];
-            if (!feature) throw new Error("المكان غير موجود");
+            const features = response.data.features;
+            if (!features || features.length === 0) throw new Error("المكان غير موجود");
 
-            return {
-                id: feature.id,
-                name: feature.place_name,
+            return features.map((f: any) => ({
+                id: f.id,
+                name: f.place_name,
                 coords: {
-                    lng: feature.center[0],
-                    lat: feature.center[1]
-                }
-            };
+                    lng: f.center[0],
+                    lat: f.center[1],
+                },
+            })) as Location[];
+
         } catch (error: any) {
             return rejectWithValue(error.message || "search failed");
         }
@@ -82,14 +86,16 @@ export const routeSlice = createSlice({
         builder
             .addCase(searchLocation.pending, (state) => {
                 state.status = 'loading';
+                state.results = [];
             })
-            .addCase(searchLocation.fulfilled, (state, action) => {
+            .addCase(searchLocation.fulfilled, (state, action: PayloadAction<Location[]>) => {
                 state.status = 'success';
-                state.results = [action.payload];
+                state.results = action.payload;
                 state.thisLocationIsMine = false;
             })
             .addCase(searchLocation.rejected, (state) => {
                 state.status = 'error';
+                state.results = [];
             })
     }
 });

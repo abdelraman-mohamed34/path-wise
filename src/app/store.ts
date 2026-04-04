@@ -4,6 +4,7 @@ import themeReducer from '../store/theme/themeSlice'
 import locationReducer from '../store/location/locationSlice'
 import detailsReducer from '../store/details/detailsSlice'
 import dataReducer from '../store/global_data/dataSlice'
+import tripReducer from '../store/trip/tripSlice'
 
 export const store = configureStore({
     reducer: {
@@ -12,6 +13,7 @@ export const store = configureStore({
         location: locationReducer,
         details: detailsReducer,
         data: dataReducer,
+        trip: tripReducer,
     },
 })
 

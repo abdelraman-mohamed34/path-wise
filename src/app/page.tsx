@@ -15,47 +15,44 @@ type Coords = {
 export default function Home() {
 
   const dispatch = useDispatch<AppDispatch>()
+  const COORDS_EXPIRY_MS = 24 * 60 * 60 * 1000
 
-  // get current coords
   useEffect(() => {
-    const savedCoords: (string | null) = localStorage.getItem('userCoords')
-    let rightType: (Coords | null) = null; // coords or null
-
-    if (savedCoords) {
+    const saved = localStorage.getItem('userCoords')
+    if (saved) {
       try {
-        rightType = JSON.parse(savedCoords);
+        const parsed = JSON.parse(saved)
+        const isExpired = Date.now() - parsed.timestamp > COORDS_EXPIRY_MS
+
+        if (!isExpired) {
+          dispatch(fetchCloser({ lat: parsed.lat, lng: parsed.lng }))
+          return
+        }
       } catch (e) {
-        console.error("Parse error", e);
+        console.error("Parse error", e)
       }
     }
 
-    if (rightType) {
-      dispatch(fetchCloser(rightType))
-    } else {
-      // get user coords
-      navigator.geolocation.getCurrentPosition(
-        (p) => {
-          const coords = { lat: p.coords.latitude, lng: p.coords.longitude }
-          dispatch(fetchCloser(coords))
-          localStorage.setItem('userCoords', JSON.stringify(coords))
-        },
-        (e) => {
-          console.log(`cant get this location, ${e}`)
+    navigator.geolocation.getCurrentPosition(
+      (p) => {
+        const coords = {
+          lat: p.coords.latitude,
+          lng: p.coords.longitude,
+          timestamp: Date.now()
         }
-      )
-    }
+        dispatch(fetchCloser(coords))
+        localStorage.setItem('userCoords', JSON.stringify(coords))
+      },
+      (e) => console.log(`cant get location: ${e}`)
+    )
   }, [])
 
   // get recent
   useEffect(() => {
     const recentFromLocalStorage: (string | null) = localStorage.getItem('recent')
     let recentSearched: (Coords | null) = null
-    if (recentFromLocalStorage) {
-      recentSearched = JSON.parse(recentFromLocalStorage)
-    }
-    if (recentSearched) {
-      dispatch(addToRecentSearched(recentSearched))
-    }
+    if (recentFromLocalStorage) { recentSearched = JSON.parse(recentFromLocalStorage) }
+    if (recentSearched) { dispatch(addToRecentSearched(recentSearched)) }
   }, [])
 
   return (

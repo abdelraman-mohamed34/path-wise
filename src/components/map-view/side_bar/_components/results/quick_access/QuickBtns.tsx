@@ -1,60 +1,99 @@
 'use client'
 import { CarFront, MoreHorizontal } from 'lucide-react'
-import React, { useState, useCallback, memo } from 'react'
-import Options from './Options'
-import { AnimatePresence } from 'framer-motion'
+import React, { useState, useCallback, useEffect, useRef, memo } from 'react'
+import { useDispatch } from 'react-redux'
+import { AppDispatch } from '@/app/store'
+import { fetchTripPoints } from '@/store/trip/api/fetchTripPoints'
+import { clearTrip, setUserLocation } from '@/store/trip/tripSlice'
+import { toast } from 'sonner'
+import OptionsBtn from './OptionsBtn'
 
 type Props = {
-    coords: {
-        lat: number;
-        lng: number;
-    }
+    coords: { lat: number; lng: number }
 }
 
 const QuickBtns = memo(({ coords }: Props) => {
-    const [showOptions, setShowOptions] = useState<boolean>(false)
 
-    const handleShowOptions = useCallback((): void => {
-        setShowOptions(prev => !prev);
-    }, []);
+    const [isTracking, setIsTracking] = useState(false) // start btn state handler
+
+    const watchIdRef = useRef<number | null>(null)
+    const dispatch = useDispatch<AppDispatch>()
+
+    useEffect(() => {
+        return () => { if (watchIdRef.current !== null) { navigator.geolocation.clearWatch(watchIdRef.current) } }
+    }, [])
+
+    // functions
+    const stopTracking = useCallback(() => {
+        if (watchIdRef.current !== null) {
+            navigator.geolocation.clearWatch(watchIdRef.current)
+            watchIdRef.current = null
+        }
+        setIsTracking(false)
+        dispatch(clearTrip())
+        dispatch(setUserLocation(null))
+    }, [dispatch])
+
+    const handleStartTrip = useCallback(() => {
+        if (isTracking) {
+            stopTracking()
+            return
+        }
+
+        if (!navigator.geolocation) {
+            toast.error("GPS not supported")
+            return
+        }
+
+        const toastId = toast.loading("Finding your location...")
+
+        watchIdRef.current = navigator.geolocation.watchPosition(
+            async (p) => {
+                toast.dismiss(toastId)
+                setIsTracking(true)
+                dispatch(setUserLocation({
+                    lat: p.coords.latitude,
+                    lng: p.coords.longitude
+                }))
+                try {
+                    await dispatch(fetchTripPoints({
+                        sCoords: { lat: p.coords.latitude, lng: p.coords.longitude },
+                        eCoords: { lat: coords.lat, lng: coords.lng }
+                    })).unwrap()
+                } catch {
+                    toast.error("Could not update route")
+                }
+            },
+            () => {
+                toast.dismiss(toastId)
+                toast.error("Enable GPS to start navigation")
+            },
+            { enableHighAccuracy: true, maximumAge: 3000 }
+        )
+    }, [isTracking, coords, dispatch, stopTracking])
 
     return (
         <div className="flex gap-2 w-full relative">
-
-            {/* start btn */}
             <button
+                onClick={handleStartTrip}
                 type='button'
-                className="flex-1 flex justify-center items-center gap-2 py-3 bg-[#0C79FE] text-white rounded-md hover:brightness-110 active:scale-[0.98] transition-all uppercase text-[11px] font-bold tracking-[2px] shadow-lg shadow-blue-500/20"
+                className={`flex-1 flex justify-center items-center gap-2 py-3 rounded-md transition-all uppercase text-[11px] font-bold tracking-[2px] shadow-lg active:scale-[0.98]
+                    ${isTracking
+                        ? 'bg-destructive text-white shadow-red-500/20'
+                        : 'bg-[#0C79FE] text-white shadow-blue-500/20 hover:brightness-110'
+                    }`}
             >
                 <CarFront size={18} strokeWidth={2.5} />
-                <span>Start</span>
+                <span>{isTracking ? 'Stop' : 'Start'}</span>
             </button>
-
-            {/* more btn */}
-            <button
-                type='button'
-                onClick={handleShowOptions}
-                aria-label="More options"
-                className={`p-3 rounded-md transition-all flex items-center justify-center active:scale-[0.95] bg-secondary/80 hover:bg-secondary/40 ${showOptions ? 'bg-secondary/100' : ''}`}
-            >
-                <MoreHorizontal size={24} />
-            </button>
-
-            <AnimatePresence>
-                {showOptions && (
-                    <Options
-                        setShowOptions={setShowOptions}
-                        coords={coords}
-                    />
-                )}
-            </AnimatePresence>
+            <OptionsBtn coords={coords} />
         </div>
     )
 }, (prevProps, nextProps) => {
     return (
         prevProps.coords.lat === nextProps.coords.lat &&
         prevProps.coords.lng === nextProps.coords.lng
-    );
-});
+    )
+})
 
-export default QuickBtns;
+export default QuickBtns

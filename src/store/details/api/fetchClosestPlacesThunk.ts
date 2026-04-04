@@ -24,6 +24,11 @@ export const fetchCloser = createAsyncThunk(
 
 const formatFeature = (feature: any, map_key: string | undefined) => {
     const [fLng, fLat] = feature.center;
+
+    const seed = feature.id ? feature.id.length : 7;
+    const stableRating = (4.2 + (seed % 8) / 10).toFixed(1);
+    const stableReviews = 50 + (seed * 11) % 900;
+
     return {
         id: feature.id,
         name: feature.place_name,
@@ -31,7 +36,7 @@ const formatFeature = (feature: any, map_key: string | undefined) => {
         coords: { lat: fLat, lng: fLng },
         image: `https://api.maptiler.com/maps/hybrid/static/${fLng},${fLat},16/400x300.jpg?key=${map_key}`,
         category: feature.properties?.category || feature.place_type?.[0] || "Location",
-        rating: (Math.random() * (5 - 4.2) + 4.2).toFixed(1),
-        reviewsCount: Math.floor(Math.random() * 900) + 50,
+        rating: stableRating,
+        reviewsCount: stableReviews,
     };
 };

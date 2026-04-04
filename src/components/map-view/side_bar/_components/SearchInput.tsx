@@ -1,22 +1,30 @@
+// src/components/map-view/side_bar/_components/SearchInput.tsx
+
 'use client'
 import React, { useState, useEffect } from 'react'
 import { Search, X } from 'lucide-react'
 import { useDispatch, useSelector } from 'react-redux'
-import { RootState } from '@/app/store'
+import { RootState, AppDispatch } from '@/app/store'
 import useDebounce from '@/hooks/useDebounce'
 import { setSearch } from '@/store/global_data/dataSlice'
+import { searchLocation } from '@/store/location/locationSlice' // ← ضيف الـ import
 
 export default function SearchInput() {
-    const dispatch = useDispatch()
-
+    const dispatch = useDispatch<AppDispatch>() // ← AppDispatch مش just useDispatch
     const globalSearchTerm = useSelector((state: RootState) => state.data.inputSearch) || ""
-
     const [localValue, setLocalValue] = useState(globalSearchTerm)
-
     const debouncedValue = useDebounce(localValue, 300)
 
+    // ✅ بيحدّث الـ Redux state (للـ UI)
     useEffect(() => {
         dispatch(setSearch(debouncedValue || ""))
+    }, [debouncedValue, dispatch])
+
+    // ✅ بيعمل الـ API call لما الـ search يتغير
+    useEffect(() => {
+        if (debouncedValue && debouncedValue.trim().length >= 2) {
+            dispatch(searchLocation(debouncedValue))
+        }
     }, [debouncedValue, dispatch])
 
     useEffect(() => {

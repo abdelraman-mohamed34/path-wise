@@ -108,10 +108,10 @@ function Suggestion({ sliceTo, className }: Props) {
                 <div className='w-full justify-center flex py-3'>
                     <button
                         type='button'
-                        className='text-primary text-xs hover:underline font-bold'
+                        className='text-[#] text-xs hover:underline'
                         onClick={() => router.push('?view=nearby_places', { scroll: false })}
                     >
-                        See more suggestions
+                        see more suggestions
                     </button>
                 </div>
             )}

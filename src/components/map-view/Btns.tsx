@@ -1,6 +1,6 @@
 'use client'
-import { MapPinIcon, MoonIcon, Router, SunIcon } from 'lucide-react'
-import React, { memo, useEffect, useState } from 'react'
+import { LocateFixed, MoonIcon, SunIcon } from 'lucide-react'
+import React, { memo, useCallback, useEffect, useState } from 'react'
 import { toggleTheme } from "@/store/theme/themeSlice";
 import { useDispatch, useSelector } from "react-redux";
 import { RootState } from '@/app/store';
@@ -21,34 +21,44 @@ const Btns = memo(function Btns() {
 
     const router = useRouter()
     const { addToRecent } = useRecentSearches()
+    const COORDS_EXPIRY_MS = 24 * 60 * 60 * 1000
 
-    const handleGoToUserLocation = () => {
-        if (!map || !navigator.geolocation) return;
-        const savedUserCoords = localStorage.getItem('userCoords');
-        if (savedUserCoords) {
+    const handleGoToUserLocation = useCallback(() => {
+        if (!navigator.geolocation) return;
+
+        const saved = localStorage.getItem('userCoords');
+        if (saved) {
             try {
-                const { lat, lng }: { lat: number, lng: number } = JSON.parse(savedUserCoords);
-                router.push(`?lat=${lat}&lng=${lng}&m=true`);
-                addToRecent({ lat: lat, lng: lng })
-                return;
+                const parsed = JSON.parse(saved);
+                const isExpired = Date.now() - parsed.timestamp > COORDS_EXPIRY_MS;
+
+                if (!isExpired) {
+                    router.push(`?lat=${parsed.lat}&lng=${parsed.lng}&m=true`);
+                    addToRecent({ lat: parsed.lat, lng: parsed.lng });
+                    return;
+                }
             } catch (e) {
                 localStorage.removeItem('userCoords');
-                console.log(e)
             }
         }
 
         navigator.geolocation.getCurrentPosition(
             (p) => {
-                const lat = p.coords.latitude;
-                const lng = p.coords.longitude;
-                localStorage.setItem('userCoords', JSON.stringify({ lat, lng }));
-                router.push(`?lat=${lat}&lng=${lng}&m=true`);
+                const coords = {
+                    lat: p.coords.latitude,
+                    lng: p.coords.longitude,
+                    timestamp: Date.now()
+                };
+                localStorage.setItem('userCoords', JSON.stringify(coords));
+                router.push(`?lat=${coords.lat}&lng=${coords.lng}&m=true`);
+                addToRecent({ lat: coords.lat, lng: coords.lng });
             },
             (error) => {
-                const msg = error.code === 1 ? 'Location access denied' : 'Could not find location';
+                const msg = error.code === 1 ? 'Location access denied' : 'Could not get location';
+                console.error(msg);
             }
         );
-    };
+    }, [map, router, addToRecent]);
 
     return (
         <div className="bg-card/98 absolute right-1 top-1 md:right-8 md:top-8 z-20 flex flex-col gap-0 pointer-events-auto rounded-[8px] overflow-hidden">
@@ -71,9 +81,9 @@ const Btns = memo(function Btns() {
             <button
                 type='button'
                 onClick={handleGoToUserLocation}
-                className="size-12 md:size-14 flex items-center justify-center hover:bg-secondary active:scale-90 transition-all text-foreground"
+                className="size-12 md:size-14 flex items-center justify-center hover:bg-secondary active:scale-90 transition-all text-foreground/90"
             >
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-send-icon lucide-send"><path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z" /><path d="m21.854 2.147-10.94 10.939" /></svg>
+                <LocateFixed />
             </button>
         </div>
     )

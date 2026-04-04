@@ -3,6 +3,7 @@ import { useRecentSearches } from '@/hooks/useAddToRecent'
 import H2 from '@/reuseable_components/H2'
 import Suggestion from '@/reuseable_components/Suggestion'
 import Window from '@/reuseable_components/Window'
+import { Search } from 'lucide-react'
 import { useRouter, useSearchParams } from 'next/navigation'
 
 function Recent({ sliceRecentTo }: { sliceRecentTo: number }) {
@@ -37,19 +38,16 @@ function Recent({ sliceRecentTo }: { sliceRecentTo: number }) {
                             <div
                                 key={`${item.lat}-${item.lng}`}
                                 onClick={() => goToLocation(item.lat, item.lng)}
-                                className='flex items-center gap-3 p-2 hover:bg-secondary/20 active:scale-[0.98] transition-all cursor-pointer border-b border-border/40 last:border-0'
+                                className='flex items-center gap-2 p-2 py-1 hover:bg-secondary/20 active:scale-[0.98] transition-all cursor-pointer border-b border-border/40 last:border-0'
                             >
-                                <div className='size-8 shrink-0 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-bold'>
-                                    {item.name?.charAt(0) || 'L'}
+                                <div className='md:size-8 size-6 shrink-0 rounded-full bg-muted-foreground/60 flex items-center justify-center text-white text-xs font-bold'>
+                                    <Search className='md:size-4 size-3' />
                                 </div>
 
                                 <div className="flex flex-col overflow-hidden">
                                     <h1 className='text-sm font-medium truncate text-foreground'>
                                         {item.name || "Unknown Location"}
                                     </h1>
-                                    <span className='text-[10px] text-muted-foreground'>
-                                        {item.lat.toFixed(4)}, {item.lng.toFixed(4)}
-                                    </span>
                                 </div>
                             </div>
                         ))

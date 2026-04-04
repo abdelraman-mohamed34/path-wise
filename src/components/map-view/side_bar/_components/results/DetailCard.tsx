@@ -1,12 +1,16 @@
 'use client'
-import React, { useCallback, memo } from 'react' // ضفنا useCallback و memo
+
+import React, { useCallback, memo } from 'react'
 import Window from '@/reuseable_components/Window';
 import { StarIcon as StarSolid } from '@heroicons/react/24/solid';
-import { motion } from 'framer-motion';
-import { MapPin, Clock, Copy, X } from 'lucide-react';
 import QuickBtns from './quick_access/QuickBtns';
-import { toast } from 'sonner';
 import Suggestion from '@/reuseable_components/Suggestion';
+import { motion } from 'framer-motion';
+import { MapPin, Clock, Copy, X, Wind } from 'lucide-react';
+import { toast } from 'sonner';
+import TripInfo from '@/components/map-view/main_map/TripInfo';
+import { useSelector } from 'react-redux';
+import { RootState } from '@/app/store';
 
 interface DetailCardProps {
     location: any;
@@ -14,6 +18,9 @@ interface DetailCardProps {
 }
 
 const DetailCardComponent = ({ location, onBack }: DetailCardProps) => {
+
+    const { coordinates } = useSelector((state: RootState) => state.trip);
+    const showBar = coordinates.length > 0;
 
     const handleCopyAddress = useCallback(() => {
         if (location?.name) {
@@ -27,10 +34,10 @@ const DetailCardComponent = ({ location, onBack }: DetailCardProps) => {
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: 20 }}
-            className="w-full flex flex-col h-full bg-card"
+            className="w-full flex flex-col h-full"
         >
             {/* Header Section */}
-            <div className='w-full flex justify-between items-start mb-4 px-1'>
+            <div className='w-full flex justify-between items-start mb-4'>
                 <div className="flex-1 overflow-hidden pr-2">
                     <h2 className="text-xl md:text-2xl font-black text-foreground tracking-tighter leading-tight italic uppercase truncate">
                         {location?.name || "Selected Location"}
@@ -46,7 +53,7 @@ const DetailCardComponent = ({ location, onBack }: DetailCardProps) => {
                 <button
                     type='button'
                     onClick={onBack}
-                    className="p-2 bg-secondary/50 hover:bg-destructive hover:text-white rounded-full transition-all active:scale-90 shrink-0"
+                    className="p-2 bg-secondary/50 hover:bg-secondary hover:text-white rounded-full transition-all active:scale-90 shrink-0"
                 >
                     <X className="size-4" />
                 </button>
@@ -57,11 +64,17 @@ const DetailCardComponent = ({ location, onBack }: DetailCardProps) => {
                 {/* Quick Action Buttons */}
                 <QuickBtns coords={location?.coords} />
 
+                {showBar && (
+                    <Window className='flex justify-center items-center md:hidden flex'>
+                        <TripInfo className='md:hidden flex' />
+                    </Window>
+                )}
+
                 {/* Location Details Window */}
                 <Window title='Location Details' className='p-4 space-y-5'>
                     <div className="flex items-start gap-4 group/item">
-                        <div className="p-2.5 bg-red-600/10 rounded-xl shrink-0">
-                            <MapPin className="size-5 text-red-600" />
+                        <div className="p-2.5 bg-red-600 rounded-full shrink-0">
+                            <MapPin className="size-5 text-white" />
                         </div>
                         <div className="flex-1 overflow-hidden">
                             <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.15em] mb-1">Address</p>
@@ -79,8 +92,8 @@ const DetailCardComponent = ({ location, onBack }: DetailCardProps) => {
                     </div>
 
                     <div className="flex items-start gap-4">
-                        <div className="p-2.5 bg-blue-600/10 rounded-xl shrink-0">
-                            <Clock className="size-5 text-blue-600" />
+                        <div className="p-2.5 bg-blue-600 rounded-full shrink-0">
+                            <Clock className="size-5 text-white" />
                         </div>
                         <div className="flex-1">
                             <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.15em] mb-1">Business Hours</p>

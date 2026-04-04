@@ -82,7 +82,7 @@ function Options({ setShowOptions, coords }: OptionsProps) {
             initial={{ opacity: 0, scale: 0.9, y: 10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.9, y: 10 }}
-            className="absolute top-16 right-0 w-48 bg-window border border-border/50 rounded-2xl shadow-2xl overflow-hidden z-50 backdrop-blur-md"
+            className="absolute top-13 right-0 w-48 bg-window border border-border/50 rounded-2xl shadow-2xl overflow-hidden z-50 backdrop-blur-md"
         >
             <div className="flex flex-col p-1">
                 {menuItems.map((item) => (
