@@ -68,12 +68,14 @@ const QuickBtns = memo(({ coords }: Props) => {
             toast.error("Connection error! Please check your internet.")
             return
         }
-        if (isTrip) {
-            stopTracking()
-            return
-        }
         if (!navigator.geolocation) {
             toast.error("Location access not supported by your browser")
+            return
+        }
+
+
+        if (isTrip) {
+            stopTracking()
             return
         }
 
@@ -81,43 +83,45 @@ const QuickBtns = memo(({ coords }: Props) => {
 
         watchIdRef.current = navigator.geolocation.watchPosition(
             async (p) => {
-                toast.dismiss(toastId)
+                toast.dismiss(toastId) // 1
                 const currentLat = p.coords.latitude
                 const currentLng = p.coords.longitude
 
                 dispatch(setUserLocationForTrip({ lat: currentLat, lng: currentLng }))
-
                 if (coordsRef.current) {
                     const latDiff = Math.abs(coordsRef.current.lat - currentLat)
                     const lngDiff = Math.abs(coordsRef.current.lng - currentLng)
                     if (latDiff < 0.0003 && lngDiff < 0.0003) return
                 }
-
                 try {
+                    // clear ant request
                     if (currentRequestRef.current) {
-                        currentRequestRef.current.abort()
+                        currentRequestRef.current.abort();
+                        currentRequestRef.current = null;
                     }
 
-                    const request = dispatch(fetchTripPoints({
+                    const promise = dispatch(fetchTripPoints({
                         sCoords: { lat: currentLat, lng: currentLng },
                         eCoords: { lat: coords.lat, lng: coords.lng }
-                    }))
+                    }));
+                    currentRequestRef.current = promise;
+                    await promise.unwrap();
 
-                    currentRequestRef.current = request
-
-                    await request.unwrap()
-
-                    coordsRef.current = { lat: currentLat, lng: currentLng }
-
-                    const params = new URLSearchParams(searchParams.toString())
+                    coordsRef.current = { lat: currentLat, lng: currentLng };
+                    const params = new URLSearchParams(searchParams.toString());
                     if (params.has('active')) {
-                        params.delete('active')
-                        router.push(`?${params.toString()}`, { scroll: false })
+                        params.delete('active');
+                        router.push(`?${params.toString()}`, { scroll: false });
                     }
 
                 } catch (err: any) {
-                    if (err !== 'cancelled' && err?.name !== 'AbortError') {
-                        toast.error("Could not update route")
+                    if (err?.name === 'AbortError' || err === 'cancelled' || err?.message === 'canceled') {
+                        console.log("Request fetch aborted as expected");
+                    } else {
+                        toast.error("Could not update route");
+                    }
+                } finally {
+                    if (currentRequestRef.current?.requestId === currentRequestRef.current?.requestId) {
                     }
                 }
             },

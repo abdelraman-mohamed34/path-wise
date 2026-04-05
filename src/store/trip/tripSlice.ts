@@ -8,7 +8,7 @@ type TripState = {
     duration: number | null;
     status: 'idle' | 'loading' | 'error' | 'success';
     userLocation: { lat: number; lng: number } | null;
-    isTrip: boolean
+    isTrip: boolean;
 }
 
 const initialState: TripState = {
@@ -43,7 +43,7 @@ export const tripSlice = createSlice({
                 state.coordinates = [];
                 state.isTrip = false;
             })
-            .addCase(fetchTripPoints.fulfilled, (state, action: any) => {
+            .addCase(fetchTripPoints.fulfilled, (state, action) => {
                 state.status = 'success';
                 state.coordinates = action.payload.geometry.coordinates;
                 state.distance = action.payload.distance;
@@ -54,7 +54,7 @@ export const tripSlice = createSlice({
                 state.status = 'error';
                 state.coordinates = [];
                 state.isTrip = false;
-            })
+            });
     }
 });
 

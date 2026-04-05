@@ -1,9 +1,8 @@
-import React, { useEffect, useState } from 'react'
+'use client'
 import { clearTrip } from "@/store/trip/tripSlice";
 import { Navigation, Clock, X, Expand } from "lucide-react";
 import { useDispatch, useSelector } from 'react-redux';
 import { AppDispatch, RootState } from '@/app/store';
-import { useMap } from 'react-map-gl/maplibre';
 import ExpandBtn from './ExpandBtn';
 
 type Props = {

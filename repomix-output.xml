@@ -354,12 +354,11 @@ export default ExpandBtn
 </file>
 
 <file path="src/components/map-view/main_map/TripInfo.tsx">
-import React, { useEffect, useState } from 'react'
+'use client'
 import { clearTrip } from "@/store/trip/tripSlice";
 import { Navigation, Clock, X, Expand } from "lucide-react";
 import { useDispatch, useSelector } from 'react-redux';
 import { AppDispatch, RootState } from '@/app/store';
-import { useMap } from 'react-map-gl/maplibre';
 import ExpandBtn from './ExpandBtn';
 
 type Props = {
@@ -428,49 +427,6 @@ function TripInfo({ className }: Props) {
 }
 
 export default TripInfo
-</file>
-
-<file path="src/components/map-view/side_bar/_components/results/quick_access/OptionsBtn.tsx">
-import { AnimatePresence } from 'framer-motion'
-import { MoreHorizontal } from 'lucide-react'
-import React, { useCallback, useState } from 'react'
-import dynamic from 'next/dynamic'
-
-const Options = dynamic(() => import('./Options'), { ssr: false })
-
-type Props = {
-    coords: { lat: number; lng: number }
-}
-
-function OptionsBtn({ coords }: Props) {
-
-    const [showOptions, setShowOptions] = useState<boolean>(false)
-
-    const handleShowOptions = useCallback(() => {
-        setShowOptions(prev => !prev)
-    }, [])
-
-    return (
-        <div>
-            <button
-                type='button'
-                onClick={handleShowOptions}
-                aria-label="More options"
-                className={`p-3 rounded-md transition-all flex items-center justify-center active:scale-[0.95] bg-secondary/80 hover:bg-secondary/40 ${showOptions ? 'bg-secondary/100' : ''}`}
-            >
-                <MoreHorizontal size={24} />
-            </button>
-
-            <AnimatePresence>
-                {showOptions && (
-                    <Options setShowOptions={setShowOptions} coords={coords} />
-                )}
-            </AnimatePresence>
-        </div>
-    )
-}
-
-export default OptionsBtn
 </file>
 
 <file path="src/hooks/useDebounce.ts">
@@ -634,116 +590,6 @@ export const { toggleLang } = langSlice.actions
 export default langSlice.reducer
 </file>
 
-<file path="src/store/trip/api/fetchTripPoints.ts">
-import { createAsyncThunk } from "@reduxjs/toolkit";
-import axios from "axios";
-
-interface Coords {
-    lat: number;
-    lng: number;
-}
-
-interface FetchTripParams {
-    sCoords: Coords; // Start Coords
-    eCoords: Coords; // End Coords
-}
-
-export const fetchTripPoints = createAsyncThunk(
-    'trip/fetchTripPoints',
-    async ({ sCoords, eCoords }: { sCoords: any; eCoords: any }, { rejectWithValue, signal }) => {
-        try {
-            const response = await axios.get(
-                `https://router.project-osrm.org/route/v1/driving/${sCoords.lng},${sCoords.lat};${eCoords.lng},${eCoords.lat}?overview=full&geometries=geojson`,
-                {
-                    signal,
-                    timeout: 10000
-                }
-            );
-
-            if (response.data.code !== 'Ok') {
-                return rejectWithValue('Route not found');
-            }
-
-            return response.data.routes[0].geometry.coordinates.map((coord: any) => ({
-                lat: coord[1],
-                lng: coord[0],
-            }));
-        } catch (error: any) {
-            if (axios.isCancel(error)) {
-                console.log('Request cancelled');
-                return rejectWithValue('cancelled');
-            }
-            return rejectWithValue(error.message || 'Failed to fetch route');
-        }
-    }
-);
-</file>
-
-<file path="src/store/trip/tripSlice.ts">
-"use client";
-import { createSlice, PayloadAction } from '@reduxjs/toolkit';
-import { fetchTripPoints } from './api/fetchTripPoints';
-
-type TripState = {
-    coordinates: number[][];
-    distance: number | null;
-    duration: number | null;
-    status: 'idle' | 'loading' | 'error' | 'success';
-    userLocation: { lat: number; lng: number } | null;
-    isTrip: boolean
-}
-
-const initialState: TripState = {
-    coordinates: [],
-    distance: null,
-    duration: null,
-    status: 'idle',
-    userLocation: null,
-    isTrip: false,
-};
-
-export const tripSlice = createSlice({
-    name: 'trip',
-    initialState,
-    reducers: {
-        clearTrip: (state) => {
-            state.coordinates = [];
-            state.distance = null;
-            state.duration = null;
-            state.status = 'idle';
-            state.userLocation = null;
-            state.isTrip = false;
-        },
-        setUserLocationForTrip: (state, action: PayloadAction<{ lat: number; lng: number } | null>) => {
-            state.userLocation = action.payload;
-        }
-    },
-    extraReducers: (builder) => {
-        builder
-            .addCase(fetchTripPoints.pending, (state) => {
-                state.status = 'loading';
-                state.coordinates = [];
-                state.isTrip = false;
-            })
-            .addCase(fetchTripPoints.fulfilled, (state, action: any) => {
-                state.status = 'success';
-                state.coordinates = action.payload.geometry.coordinates;
-                state.distance = action.payload.distance;
-                state.duration = action.payload.duration;
-                state.isTrip = true;
-            })
-            .addCase(fetchTripPoints.rejected, (state) => {
-                state.status = 'error';
-                state.coordinates = [];
-                state.isTrip = false;
-            })
-    }
-});
-
-export const { clearTrip, setUserLocationForTrip } = tripSlice.actions;
-export default tripSlice.reducer;
-</file>
-
 <file path="tsconfig.json">
 {
   "compilerOptions": {
@@ -895,6 +741,49 @@ function Favorite({ sliceFavorsTo }: { sliceFavorsTo: number }) {
 export default Favorite
 </file>
 
+<file path="src/components/map-view/side_bar/_components/results/quick_access/OptionsBtn.tsx">
+import { AnimatePresence } from 'framer-motion'
+import { MoreHorizontal } from 'lucide-react'
+import React, { useCallback, useState } from 'react'
+import dynamic from 'next/dynamic'
+
+const Options = dynamic(() => import('./Options'), { ssr: false })
+
+type Props = {
+    coords: { lat: number; lng: number }
+}
+
+function OptionsBtn({ coords }: Props) {
+
+    const [showOptions, setShowOptions] = useState<boolean>(false)
+
+    const handleShowOptions = useCallback(() => {
+        setShowOptions(prev => !prev)
+    }, [])
+
+    return (
+        <div>
+            <button
+                type='button'
+                onClick={handleShowOptions}
+                aria-label="More options"
+                className={`p-3 rounded-md transition-all flex items-center justify-center active:scale-[0.95] bg-secondary/80 hover:bg-secondary/40 ${showOptions ? 'bg-secondary/100' : ''}`}
+            >
+                <MoreHorizontal size={24} />
+            </button>
+
+            <AnimatePresence>
+                {showOptions && (
+                    <Options setShowOptions={setShowOptions} coords={coords} />
+                )}
+            </AnimatePresence>
+        </div>
+    )
+}
+
+export default OptionsBtn
+</file>
+
 <file path="src/components/views/NearbyPlacesView.tsx">
 'use client'
 
@@ -932,110 +821,6 @@ function NearbyPlacesView() {
 }
 
 export default NearbyPlacesView
-</file>
-
-<file path="src/hooks/useAddToFavors.ts">
-import { AppDispatch } from "@/app/store";
-import { getLocationDetails } from "@/store/details/api/fetchLocationDetails";
-import { useState, useEffect } from "react";
-import { useDispatch, useSelector } from "react-redux";
-
-type Coords = {
-    name?: string;
-    lat: number;
-    lng: number;
-};
-
-export const useFavorites = () => {
-    const [favors, setFavors] = useState<Coords[]>([]);
-    const disPatch = useDispatch<AppDispatch>();
-
-    useEffect(() => {
-        const storedData = localStorage.getItem("favorites");
-        if (storedData) {
-            try {
-                const parsedData = JSON.parse(storedData);
-                if (Array.isArray(parsedData)) setFavors(parsedData);
-            } catch (e) {
-                console.error("Favorites storage is corrupted", e);
-            }
-        }
-    }, []);
-
-    const addToFavors = async (newFavors: Coords) => {
-        try {
-            const result = await disPatch(getLocationDetails(newFavors)).unwrap();
-            const entryWithDetails = {
-                ...newFavors,
-                name: result?.name || "Unknown Location"
-            };
-            setFavors((prevFavors) => {
-                const filtered = prevFavors.filter(
-                    (item) => !(item.lat === newFavors.lat && item.lng === newFavors.lng)
-                );
-                const updated = [entryWithDetails, ...filtered].slice(0, 8);
-                localStorage.setItem("favorites", JSON.stringify(updated));
-                return updated;
-            });
-        } catch (error: any) {
-            if (error?.name === 'ConditionError') return;
-            console.error("Failed to add to favorites", error);
-        }
-    };
-
-    return { favors, addToFavors };
-};
-</file>
-
-<file path="src/hooks/useAddToRecent.ts">
-import { AppDispatch, RootState } from "@/app/store";
-import { getLocationDetails } from "@/store/details/api/fetchLocationDetails";
-import { useState, useEffect } from "react";
-import { useDispatch, useSelector } from "react-redux";
-
-type Coords = {
-    name?: string;
-    lat: number;
-    lng: number;
-};
-
-export const useRecentSearches = () => {
-    const [recent, setRecent] = useState<Coords[]>([]);
-    const disPatch = useDispatch<AppDispatch>();
-
-    useEffect(() => {
-        const data = localStorage.getItem("recent");
-        if (data) {
-            try {
-                const parsedData = JSON.parse(data);
-                if (Array.isArray(parsedData)) setRecent(parsedData);
-            } catch (e) { console.error(e); }
-        }
-    }, []);
-
-    const addToRecent = async (newRecent: Coords) => {
-        try {
-            const result = await disPatch(getLocationDetails(newRecent)).unwrap();
-            const entryWithDetails = {
-                ...newRecent,
-                name: result?.name || "Unknown Location"
-            };
-            setRecent((prev) => {
-                const filtered = prev.filter(
-                    (item) => !(item.lat === newRecent.lat && item.lng === newRecent.lng)
-                );
-                const updated = [entryWithDetails, ...filtered].slice(0, 8);
-                localStorage.setItem("recent", JSON.stringify(updated));
-                return updated;
-            });
-        } catch (error: any) {
-            if (error?.name === 'ConditionError') return;
-            console.error("Failed to fetch location details", error);
-        }
-    };
-
-    return { recent, addToRecent };
-};
 </file>
 
 <file path="src/reuseable_components/Container.tsx">
@@ -1413,52 +1198,601 @@ export const { toggleTheme, setTheme } = themeSlice.actions
 export default themeSlice.reducer
 </file>
 
-<file path="README.md">
-# 📍 GeoVision | Next-Generation Interactive Mapping & Navigation
+<file path="src/store/trip/api/fetchTripPoints.ts">
+import { createAsyncThunk } from "@reduxjs/toolkit";
+import axios from "axios";
 
-**GeoVision** is a high-performance map application built with **Next.js 15**, designed to provide a seamless user experience for navigation and location discovery. It features a robust routing system, real-time location tracking, and a highly interactive UI optimized for both mobile and desktop users.
+interface Coords {
+    lat: number;
+    lng: number;
+}
 
----
+interface FetchTripParams {
+    sCoords: Coords; // Start Coords
+    eCoords: Coords; // End Coords
+}
 
-## 🌐 Live Demo
-<a href='https://path-wise-one.vercel.app/' target='_blank'>search-engine/</a>
+interface TripResult {
+    geometry: {
+        type: "LineString";
+        coordinates: number[][];
+    };
+    distance: number;
+    duration: number;
+}
+
+export const fetchTripPoints = createAsyncThunk<TripResult, FetchTripParams>(
+    'trip/fetchTripPoints',
+    async ({ sCoords, eCoords }, { rejectWithValue, signal }) => {
+        try {
+            const response = await axios.get(
+                `https://router.project-osrm.org/route/v1/driving/${sCoords.lng},${sCoords.lat};${eCoords.lng},${eCoords.lat}?overview=full&geometries=geojson`,
+                {
+                    signal,
+                    timeout: 10000
+                }
+            );
+
+            if (response.data.code !== 'Ok') {
+                return rejectWithValue('Route not found');
+            }
+
+            const route = response.data.routes[0];
+
+            return {
+                geometry: route.geometry,   // { type: "LineString", coordinates: number[][] }
+                distance: route.distance,   // meters
+                duration: route.duration,   // seconds
+            };
+        } catch (error: any) {
+            if (axios.isCancel(error)) {
+                console.log('Request cancelled');
+                return rejectWithValue('cancelled');
+            }
+            return rejectWithValue(error.message || 'Failed to fetch route');
+        }
+    }
+);
+</file>
+
+<file path="src/store/trip/tripSlice.ts">
+"use client";
+import { createSlice, PayloadAction } from '@reduxjs/toolkit';
+import { fetchTripPoints } from './api/fetchTripPoints';
+
+type TripState = {
+    coordinates: number[][];
+    distance: number | null;
+    duration: number | null;
+    status: 'idle' | 'loading' | 'error' | 'success';
+    userLocation: { lat: number; lng: number } | null;
+    isTrip: boolean;
+}
+
+const initialState: TripState = {
+    coordinates: [],
+    distance: null,
+    duration: null,
+    status: 'idle',
+    userLocation: null,
+    isTrip: false,
+};
+
+export const tripSlice = createSlice({
+    name: 'trip',
+    initialState,
+    reducers: {
+        clearTrip: (state) => {
+            state.coordinates = [];
+            state.distance = null;
+            state.duration = null;
+            state.status = 'idle';
+            state.userLocation = null;
+            state.isTrip = false;
+        },
+        setUserLocationForTrip: (state, action: PayloadAction<{ lat: number; lng: number } | null>) => {
+            state.userLocation = action.payload;
+        }
+    },
+    extraReducers: (builder) => {
+        builder
+            .addCase(fetchTripPoints.pending, (state) => {
+                state.status = 'loading';
+                state.coordinates = [];
+                state.isTrip = false;
+            })
+            .addCase(fetchTripPoints.fulfilled, (state, action) => {
+                state.status = 'success';
+                state.coordinates = action.payload.geometry.coordinates;
+                state.distance = action.payload.distance;
+                state.duration = action.payload.duration;
+                state.isTrip = true;
+            })
+            .addCase(fetchTripPoints.rejected, (state) => {
+                state.status = 'error';
+                state.coordinates = [];
+                state.isTrip = false;
+            });
+    }
+});
+
+export const { clearTrip, setUserLocationForTrip } = tripSlice.actions;
+export default tripSlice.reducer;
+</file>
+
+<file path="src/components/map-view/side_bar/_components/results/categories/MyCategory.tsx">
+'use client'
+import Favorite from './Favorite'
+import Recent from './Recent'
+import Suggestion from '@/reuseable_components/Suggestion'
+
+function MyCategory() {
+    return (
+        <div className='w-full h-[calc(105vh-180px)] overflow-y-auto space-y-6 hide-scrollbar pb-10'>
+            <Favorite sliceFavorsTo={2} />
+            <Recent sliceRecentTo={2} />
+            <Suggestion sliceTo={3} />
+        </div>
+    )
+}
+
+export default MyCategory
+</file>
+
+<file path="src/components/map-view/side_bar/_components/results/categories/Recent.tsx">
+'use client'
+import { useRecentSearches } from '@/hooks/useAddToRecent'
+import H2 from '@/reuseable_components/H2'
+import Suggestion from '@/reuseable_components/Suggestion'
+import Window from '@/reuseable_components/Window'
+import { Search } from 'lucide-react'
+import { useRouter, useSearchParams } from 'next/navigation'
+
+function Recent({ sliceRecentTo }: { sliceRecentTo: number }) {
+    const { recent } = useRecentSearches()
+    const router = useRouter()
+
+    const goToLocation = (lat: number, lng: number): void => {
+        router.push(`?lat=${lat}&lng=${lng}`)
+    }
+
+    const showAllRecent = (): void => {
+        router.push('?view=recent')
+    }
+    const searchParams = useSearchParams()
+    const view = searchParams.get('view')
+
+    return (
+        <div className="w-full">
+            <div className='w-full flex justify-between'>
+                <H2>Recent</H2>
+                {!(view || view === 'recent') && recent.length > 0 && (
+                    <button type='button' onClick={showAllRecent} className="group flex items-center gap-1 text-[#0C79FE] hover:underline hover:underline-offset-4 transition-all md:text-[15px] text-[12px]">
+                        <span>see all</span>
+                    </button>
+                )}
+            </div>
+
+            <Window className='p-2 mb-5 flex justify-center items-center'>
+                <div className="flex flex-col gap-2 w-full">
+                    {recent && recent.length > 0 ? (
+                        recent.slice(0, sliceRecentTo).map((item) => (
+                            <div
+                                key={`${item.lat}-${item.lng}`}
+                                onClick={() => goToLocation(item.lat, item.lng)}
+                                className='flex items-center gap-2 p-2 py-1 hover:bg-secondary/20 active:scale-[0.98] transition-all cursor-pointer border-b border-border/40 last:border-0'
+                            >
+                                <div className='md:size-8 size-6 shrink-0 rounded-full bg-muted-foreground/60 flex items-center justify-center text-white text-xs font-bold'>
+                                    <Search className='md:size-4 size-3' />
+                                </div>
+
+                                <div className="flex flex-col overflow-hidden">
+                                    <h1 className='text-sm font-medium truncate text-foreground'>
+                                        {item.name || "Unknown Location"}
+                                    </h1>
+                                </div>
+                            </div>
+                        ))
+                    ) : (
+                        <div className="flex justify-center items-center w-full h-full">
+                            <h1 className="md:text-xs text-[10px] text-muted-foreground uppercase tracking-widest">No recent searches</h1>
+                        </div>
+                    )}
+                </div>
+            </Window>
+
+            {(view || view === 'recent') && (<Suggestion sliceTo={3} />)}
+        </div >
+    )
+}
+
+export default Recent
+</file>
+
+<file path="src/components/map-view/side_bar/_components/results/quick_access/Options.tsx">
+'use client'
+import React from 'react'
+import { motion } from 'framer-motion'
+import { Share2, Bookmark, Navigation2 } from 'lucide-react'
+import { useFavorites } from '@/hooks/useAddToFavors'
+import { toast } from 'sonner'
+
+type Coords = {
+    lat: number;
+    lng: number;
+};
+
+type OptionsProps = {
+    setShowOptions: (val: boolean) => void,
+    coords: Coords
+}
+
+type MenuItem = {
+    icon: React.ReactNode;
+    label: string;
+    color: string;
+    action: () => void;
+    message?: string;
+};
+
+function Options({ setShowOptions, coords }: OptionsProps) {
+    const { addToFavors } = useFavorites()
+
+    const handleShare = async () => {
+        try {
+            const fullUrl = window.location.href;
+            await navigator.clipboard.writeText(fullUrl);
+            toast.success("URL copied");
+        } catch (error) {
+            toast.error("Failed to copy link");
+        }
+    };
+
+    const menuItems: MenuItem[] = React.useMemo(() => [
+        {
+            icon: <Navigation2 size={16} />,
+            label: 'Directions',
+            color: 'text-blue-500',
+            action: () => window.open(
+                `https://www.google.com/maps?q=${coords.lat},${coords.lng}`,
+                '_blank',
+                'noopener,noreferrer'
+            ),
+            message: 'Opening Google Maps...'
+        },
+        {
+            icon: <Bookmark size={16} />,
+            label: 'Save Place',
+            color: 'text-yellow-500',
+            action: () => addToFavors(coords),
+            message: 'Added to your favorites!'
+        },
+        {
+            icon: <Share2 size={16} />,
+            label: 'Share',
+            color: 'text-green-500',
+            action: handleShare,
+        }
+    ], [coords, addToFavors])
+
+    const handleClick = (item: MenuItem) => {
+        const doHandle = async () => {
+
+            setShowOptions(false);
+
+            await item.action();
+
+            if (item.message) {
+                toast.success(item.message);
+            }
+        }
+        doHandle()
+    }
+
+    return (
+        <motion.div
+            initial={{ opacity: 0, scale: 0.9, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.9, y: 10 }}
+            className="absolute top-13 right-0 w-48 bg-window border border-border/50 rounded-2xl shadow-2xl overflow-hidden z-50 backdrop-blur-md"
+        >
+            <div className="flex flex-col p-1">
+                {menuItems.map((item) => (
+                    <button
+                        type="button"
+                        key={item.label}
+                        onClick={() => handleClick(item)}
+                        className="flex items-center gap-2 w-full p-3 hover:bg-secondary/50 transition-colors rounded-xl group"
+                    >
+                        <div className={`${item.color} group-hover:scale-110 transition-transform`}>
+                            {item.icon}
+                        </div>
+                        <span className="text-sm font-medium text-foreground/80 group-hover:text-foreground">
+                            {item.label}
+                        </span>
+                    </button>
+                ))}
+            </div>
+        </motion.div >
+    )
+}
+
+export default Options
+</file>
+
+<file path="src/hooks/useAddToFavors.ts">
+import { AppDispatch } from "@/app/store";
+import { getLocationDetails } from "@/store/details/api/fetchLocationDetails";
+import { useState, useEffect } from "react";
+import { useDispatch, useSelector } from "react-redux";
+
+type Coords = {
+    name?: string;
+    lat: number;
+    lng: number;
+};
+
+export const useFavorites = () => {
+    const [favors, setFavors] = useState<Coords[]>([]);
+    const disPatch = useDispatch<AppDispatch>();
+
+    useEffect(() => {
+        const storedData = localStorage.getItem("favorites");
+        if (storedData) {
+            try {
+                const parsedData = JSON.parse(storedData);
+                if (Array.isArray(parsedData)) setFavors(parsedData);
+            } catch (e) {
+                console.error("Favorites storage is corrupted", e);
+            }
+        }
+    }, []);
+
+    const addToFavors = async (newFavors: Coords) => {
+        try {
+            const result = await disPatch(getLocationDetails(newFavors)).unwrap();
+            const entryWithDetails = {
+                ...newFavors,
+                name: result?.name || "Unknown Location"
+            };
+            setFavors((prevFavors) => {
+                const filtered = prevFavors.filter(
+                    (item) => !(item.lat === newFavors.lat && item.lng === newFavors.lng)
+                );
+                const updated = [entryWithDetails, ...filtered].slice(0, 8);
+                localStorage.setItem("favorites", JSON.stringify(updated));
+                return updated;
+            });
+        } catch (error: any) {
+            if (error?.name === 'ConditionError') return;
+            console.error("Failed to add to favorites", error);
+        }
+    };
+
+    return { favors, addToFavors };
+};
+</file>
+
+<file path="src/hooks/useAddToRecent.ts">
+import { AppDispatch, RootState } from "@/app/store";
+import { getLocationDetails } from "@/store/details/api/fetchLocationDetails";
+import { useState, useEffect } from "react";
+import { useDispatch, useSelector } from "react-redux";
+
+type Coords = {
+    name?: string;
+    lat: number;
+    lng: number;
+};
+
+export const useRecentSearches = () => {
+    const [recent, setRecent] = useState<Coords[]>([]);
+    const disPatch = useDispatch<AppDispatch>();
+
+    useEffect(() => {
+        const data = localStorage.getItem("recent");
+        if (data) {
+            try {
+                const parsedData = JSON.parse(data);
+                if (Array.isArray(parsedData)) setRecent(parsedData);
+            } catch (e) { console.error(e); }
+        }
+    }, []);
+
+    const addToRecent = async (newRecent: Coords) => {
+        try {
+            const result = await disPatch(getLocationDetails(newRecent)).unwrap();
+            const entryWithDetails = {
+                ...newRecent,
+                name: result?.name || "Unknown Location"
+            };
+            setRecent((prev) => {
+                const filtered = prev.filter(
+                    (item) => !(item.lat === newRecent.lat && item.lng === newRecent.lng)
+                );
+                const updated = [entryWithDetails, ...filtered].slice(0, 8);
+                localStorage.setItem("recent", JSON.stringify(updated));
+                return updated;
+            });
+        } catch (error: any) {
+            if (error?.name === 'ConditionError') return;
+            console.error("Failed to fetch location details", error);
+        }
+    };
+
+    return { recent, addToRecent };
+};
+</file>
+
+<file path="src/store/details/api/fetchLocationDetails.ts">
+import { RootState } from "@/app/store";
+import { createAsyncThunk } from "@reduxjs/toolkit";
+import axios from "axios";
+
+export interface LocationDetail {
+    id: string;
+    name: string;
+    shortName: string;
+    coords: { lat: number; lng: number };
+    image: string;
+    category: string;
+    rating: string;
+    reviewsCount: number;
+}
 
 
----
+export interface LocationDetail {
+    id: string;
+    name: string;
+    shortName: string;
+    coords: { lat: number; lng: number };
+    image: string;
+    category: string;
+    rating: string;
+    reviewsCount: number;
+}
 
-## 🚀 Tech Stack
+export const getLocationDetails = createAsyncThunk<
+    LocationDetail,
+    { lat: number; lng: number },
+    { rejectValue: string; state: RootState }
+>(
+    'details/getLocationDetails',
+    async (coords, { rejectWithValue }) => {
+        try {
+            const map_key = process.env.NEXT_PUBLIC_MAP_KEY;
 
-Selected for scalability, performance, and modern developer experience:
+            if (!map_key) {
+                return rejectWithValue("Map API Key is missing. Check your .env file.");
+            }
 
-* **Framework:** [Next.js 15](https://nextjs.org/) (App Router)
-* **State Management:** [Redux Toolkit](https://redux-toolkit.js.org/)
-* **Mapping:** [MapLibre GL](https://maplibre.org/) & [React Map GL](http://visgl.github.io/react-map-gl/)
-* **Styling:** [Tailwind CSS](https://tailwindcss.com/) & [Shadcn UI](https://ui.shadcn.com/)
-* **Animations:** [Framer Motion](https://www.framer.com/motion/)
-* **Icons:** [Lucide React](https://lucide.dev/)
-* **Data Fetching:** [Axios](https://axios-http.com/)
+            // طلب البيانات من MapTiler
+            const locationDetailsURL = `https://api.maptiler.com/geocoding/${coords.lng},${coords.lat}.json?key=${map_key}&types=poi,place,address`;
+            const res = await axios.get(locationDetailsURL);
 
----
+            const feature = res.data?.features?.[0];
 
-## ✨ Key Features
+            if (!feature) {
+                return rejectWithValue("Could not find any information for this location.");
+            }
 
-### 🗺️ Intelligent Routing System
-* **Dynamic Routes:** Real-time driving directions calculated via **MapTiler API**.
-* **Adaptive Camera Modes:** Supports **Overview Mode** for full-path visibility and **Navigation Mode** for a focused 3D perspective with high zoom on the user's position.
-* **High-Visibility Paths:** Routes are rendered using a **Double-layered Polyline** (white outline + blue core) to ensure maximum contrast across all map styles.
+            const placeName = feature.text || feature.place_name?.split(',')[0] || "Unknown Location";
+            const imageUrl = `https://api.maptiler.com/maps/hybrid/static/${coords.lng},${coords.lat},16/200x150.jpg?key=${map_key}`;
 
-### 🔍 Advanced Search & Discovery
-* **Smart Debouncing:** Search inputs are debounced to optimize API usage and provide a smooth typing experience.
-* **Persistent History:** Recent searches are stored in **LocalStorage** for instant access during future sessions.
-* **Reverse Geocoding:** Get precise location details instantly by clicking anywhere on the map.
+            const idSeed = feature.id ? feature.id.length : 7;
+            const stableRating = (3.8 + (idSeed % 12) / 10).toFixed(1);
+            const stableReviews = 50 + (idSeed * 3);
 
-### 📱 Premium Interactive UI
-* **Responsive Sidebar:** A mobile-first dynamic drawer that supports **Drag-to-resize** gestures powered by Framer Motion.
-* **Theme Synchronization:** Full support for **Dark & Light Modes**, with map tiles and layer colors updating dynamically to match the system theme.
+            return {
+                id: feature.id || `${coords.lat.toFixed(4)}-${coords.lng.toFixed(4)}`,
+                name: feature.place_name || placeName,
+                shortName: placeName,
+                coords: coords,
+                image: imageUrl,
+                category: feature.properties?.category?.[0] || feature.properties?.type || "Location",
+                rating: stableRating,
+                reviewsCount: stableReviews
+            };
 
-### ⚡ Performance Engineering
-* **Declarative Mapping:** Map layers and sources are fully reactive, driven by the centralized Redux state.
-* **Optimized Rendering:** Heavy use of `React.memo`, `useCallback`, and `useMemo` to maintain 60FPS performance during map interactions and sidebar transitions.
+        } catch (error: any) {
+            let errorMessage = "An unexpected error occurred";
+            if (axios.isAxiosError(error)) {
+                errorMessage = error.response?.data?.message || error.message;
+            } else if (error instanceof Error) {
+                errorMessage = error.message;
+            }
+            console.error("Fetch Details Error:", errorMessage);
+            return rejectWithValue(errorMessage);
+        }
+    },
+    {
+        condition: (coords, { getState }) => {
+            const { details } = getState();
+
+            if (details.status === 'loading') {
+                return false;
+            }
+
+            const lastCoords = details.selectedLocation?.coords;
+            if (lastCoords) {
+                const isSameLat = lastCoords.lat.toFixed(4) === coords.lat.toFixed(4);
+                const isSameLng = lastCoords.lng.toFixed(4) === coords.lng.toFixed(4);
+
+                if (isSameLat && isSameLng) {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+    }
+);
+</file>
+
+<file path="src/app/page.tsx">
+'use client'
+import { useDispatch, useSelector } from "react-redux";
+import { AppDispatch, RootState } from "./store";
+import { useEffect } from "react";
+import Map from "@/components/map-view/main_map/Map";
+import { fetchCloser } from "@/store/details/api/fetchClosestPlacesThunk";
+import { addToRecentSearched } from "@/store/details/detailsSlice";
+
+type Coords = {
+  name?: string
+  lat: number,
+  lng: number
+}
+
+export default function Home() {
+
+  const dispatch = useDispatch<AppDispatch>()
+  const COORDS_EXPIRY_MS = 24 * 60 * 60 * 1000
+
+  useEffect(() => {
+    const saved = localStorage.getItem('userCoords')
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved)
+        const isExpired = Date.now() - parsed.timestamp > COORDS_EXPIRY_MS
+
+        if (!isExpired) {
+          dispatch(fetchCloser({ lat: parsed.lat, lng: parsed.lng }))
+          return
+        }
+      } catch (e) {
+        console.error("Parse error", e)
+      }
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (p) => {
+        const coords = {
+          lat: p.coords.latitude,
+          lng: p.coords.longitude,
+          timestamp: Date.now()
+        }
+        dispatch(fetchCloser(coords))
+        localStorage.setItem('userCoords', JSON.stringify(coords))
+      },
+      (e) => console.log(`cant get location: ${e}`)
+    )
+  }, [])
+
+  // get recent
+  useEffect(() => {
+    const recentFromLocalStorage: (string | null) = localStorage.getItem('recent')
+    let recentSearched: (Coords | null) = null
+    if (recentFromLocalStorage) { recentSearched = JSON.parse(recentFromLocalStorage) }
+    if (recentSearched) { dispatch(addToRecentSearched(recentSearched)) }
+  }, [])
+
+  return (
+    <>
+      <Map />
+    </>
+  );
+}
 </file>
 
 <file path="src/components/map-view/main_map/MapComponent.tsx">
@@ -1637,95 +1971,6 @@ MapComponent.displayName = "MapComponent";
 export default MapComponent;
 </file>
 
-<file path="src/components/map-view/side_bar/_components/results/categories/MyCategory.tsx">
-'use client'
-import Favorite from './Favorite'
-import Recent from './Recent'
-import Suggestion from '@/reuseable_components/Suggestion'
-
-function MyCategory() {
-    return (
-        <div className='w-full h-[calc(105vh-180px)] overflow-y-auto space-y-6 hide-scrollbar pb-10'>
-            <Favorite sliceFavorsTo={2} />
-            <Recent sliceRecentTo={2} />
-            <Suggestion sliceTo={3} />
-        </div>
-    )
-}
-
-export default MyCategory
-</file>
-
-<file path="src/components/map-view/side_bar/_components/results/categories/Recent.tsx">
-'use client'
-import { useRecentSearches } from '@/hooks/useAddToRecent'
-import H2 from '@/reuseable_components/H2'
-import Suggestion from '@/reuseable_components/Suggestion'
-import Window from '@/reuseable_components/Window'
-import { Search } from 'lucide-react'
-import { useRouter, useSearchParams } from 'next/navigation'
-
-function Recent({ sliceRecentTo }: { sliceRecentTo: number }) {
-    const { recent } = useRecentSearches()
-    const router = useRouter()
-
-    const goToLocation = (lat: number, lng: number): void => {
-        router.push(`?lat=${lat}&lng=${lng}`)
-    }
-
-    const showAllRecent = (): void => {
-        router.push('?view=recent')
-    }
-    const searchParams = useSearchParams()
-    const view = searchParams.get('view')
-
-    return (
-        <div className="w-full">
-            <div className='w-full flex justify-between'>
-                <H2>Recent</H2>
-                {!(view || view === 'recent') && recent.length > 0 && (
-                    <button type='button' onClick={showAllRecent} className="group flex items-center gap-1 text-[#0C79FE] hover:underline hover:underline-offset-4 transition-all md:text-[15px] text-[12px]">
-                        <span>see all</span>
-                    </button>
-                )}
-            </div>
-
-            <Window className='p-2 mb-5 flex justify-center items-center'>
-                <div className="flex flex-col gap-2 w-full">
-                    {recent && recent.length > 0 ? (
-                        recent.slice(0, sliceRecentTo).map((item) => (
-                            <div
-                                key={`${item.lat}-${item.lng}`}
-                                onClick={() => goToLocation(item.lat, item.lng)}
-                                className='flex items-center gap-2 p-2 py-1 hover:bg-secondary/20 active:scale-[0.98] transition-all cursor-pointer border-b border-border/40 last:border-0'
-                            >
-                                <div className='md:size-8 size-6 shrink-0 rounded-full bg-muted-foreground/60 flex items-center justify-center text-white text-xs font-bold'>
-                                    <Search className='md:size-4 size-3' />
-                                </div>
-
-                                <div className="flex flex-col overflow-hidden">
-                                    <h1 className='text-sm font-medium truncate text-foreground'>
-                                        {item.name || "Unknown Location"}
-                                    </h1>
-                                </div>
-                            </div>
-                        ))
-                    ) : (
-                        <div className="flex justify-center items-center w-full h-full">
-                            <h1 className="md:text-xs text-[10px] text-muted-foreground uppercase tracking-widest">No recent searches</h1>
-                        </div>
-                    )}
-                </div>
-            </Window>
-
-            {(view || view === 'recent') && (<Suggestion sliceTo={3} />)}
-        </div >
-    )
-}
-
-export default Recent
-</file>
-
 <file path="src/components/map-view/side_bar/_components/results/LocationCard.tsx">
 import Window from '@/reuseable_components/Window';
 import { ChevronLeft, MapPin } from 'lucide-react';
@@ -1757,627 +2002,6 @@ export default function LocationCard({ item, onClick }: LocationCardProps) {
         </Window>
     )
 }
-</file>
-
-<file path="src/components/map-view/side_bar/_components/results/quick_access/Options.tsx">
-'use client'
-import React from 'react'
-import { motion } from 'framer-motion'
-import { Share2, Bookmark, Navigation2 } from 'lucide-react'
-import { useFavorites } from '@/hooks/useAddToFavors'
-import { toast } from 'sonner'
-
-type Coords = {
-    lat: number;
-    lng: number;
-};
-
-type OptionsProps = {
-    setShowOptions: (val: boolean) => void,
-    coords: Coords
-}
-
-type MenuItem = {
-    icon: React.ReactNode;
-    label: string;
-    color: string;
-    action: () => void;
-    message?: string;
-};
-
-function Options({ setShowOptions, coords }: OptionsProps) {
-    const { addToFavors } = useFavorites()
-
-    const handleShare = async () => {
-        try {
-            const fullUrl = window.location.href;
-            await navigator.clipboard.writeText(fullUrl);
-            toast.success("URL copied");
-        } catch (error) {
-            toast.error("Failed to copy link");
-        }
-    };
-
-    const menuItems: MenuItem[] = React.useMemo(() => [
-        {
-            icon: <Navigation2 size={16} />,
-            label: 'Directions',
-            color: 'text-blue-500',
-            action: () => window.open(
-                `https://www.google.com/maps?q=${coords.lat},${coords.lng}`,
-                '_blank',
-                'noopener,noreferrer'
-            ),
-            message: 'Opening Google Maps...'
-        },
-        {
-            icon: <Bookmark size={16} />,
-            label: 'Save Place',
-            color: 'text-yellow-500',
-            action: () => addToFavors(coords),
-            message: 'Added to your favorites!'
-        },
-        {
-            icon: <Share2 size={16} />,
-            label: 'Share',
-            color: 'text-green-500',
-            action: handleShare,
-        }
-    ], [coords, addToFavors])
-
-    const handleClick = (item: MenuItem) => {
-        const doHandle = async () => {
-
-            setShowOptions(false);
-
-            await item.action();
-
-            if (item.message) {
-                toast.success(item.message);
-            }
-        }
-        doHandle()
-    }
-
-    return (
-        <motion.div
-            initial={{ opacity: 0, scale: 0.9, y: 10 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.9, y: 10 }}
-            className="absolute top-13 right-0 w-48 bg-window border border-border/50 rounded-2xl shadow-2xl overflow-hidden z-50 backdrop-blur-md"
-        >
-            <div className="flex flex-col p-1">
-                {menuItems.map((item) => (
-                    <button
-                        type="button"
-                        key={item.label}
-                        onClick={() => handleClick(item)}
-                        className="flex items-center gap-2 w-full p-3 hover:bg-secondary/50 transition-colors rounded-xl group"
-                    >
-                        <div className={`${item.color} group-hover:scale-110 transition-transform`}>
-                            {item.icon}
-                        </div>
-                        <span className="text-sm font-medium text-foreground/80 group-hover:text-foreground">
-                            {item.label}
-                        </span>
-                    </button>
-                ))}
-            </div>
-        </motion.div >
-    )
-}
-
-export default Options
-</file>
-
-<file path="src/store/details/api/fetchLocationDetails.ts">
-import { RootState } from "@/app/store";
-import { createAsyncThunk } from "@reduxjs/toolkit";
-import axios from "axios";
-
-export interface LocationDetail {
-    id: string;
-    name: string;
-    shortName: string;
-    coords: { lat: number; lng: number };
-    image: string;
-    category: string;
-    rating: string;
-    reviewsCount: number;
-}
-
-
-export interface LocationDetail {
-    id: string;
-    name: string;
-    shortName: string;
-    coords: { lat: number; lng: number };
-    image: string;
-    category: string;
-    rating: string;
-    reviewsCount: number;
-}
-
-export const getLocationDetails = createAsyncThunk<
-    LocationDetail,
-    { lat: number; lng: number },
-    { rejectValue: string; state: RootState }
->(
-    'details/getLocationDetails',
-    async (coords, { rejectWithValue }) => {
-        try {
-            const map_key = process.env.NEXT_PUBLIC_MAP_KEY;
-
-            if (!map_key) {
-                return rejectWithValue("Map API Key is missing. Check your .env file.");
-            }
-
-            // طلب البيانات من MapTiler
-            const locationDetailsURL = `https://api.maptiler.com/geocoding/${coords.lng},${coords.lat}.json?key=${map_key}&types=poi,place,address`;
-            const res = await axios.get(locationDetailsURL);
-
-            const feature = res.data?.features?.[0];
-
-            if (!feature) {
-                return rejectWithValue("Could not find any information for this location.");
-            }
-
-            const placeName = feature.text || feature.place_name?.split(',')[0] || "Unknown Location";
-            const imageUrl = `https://api.maptiler.com/maps/hybrid/static/${coords.lng},${coords.lat},16/200x150.jpg?key=${map_key}`;
-
-            const idSeed = feature.id ? feature.id.length : 7;
-            const stableRating = (3.8 + (idSeed % 12) / 10).toFixed(1);
-            const stableReviews = 50 + (idSeed * 3);
-
-            return {
-                id: feature.id || `${coords.lat.toFixed(4)}-${coords.lng.toFixed(4)}`,
-                name: feature.place_name || placeName,
-                shortName: placeName,
-                coords: coords,
-                image: imageUrl,
-                category: feature.properties?.category?.[0] || feature.properties?.type || "Location",
-                rating: stableRating,
-                reviewsCount: stableReviews
-            };
-
-        } catch (error: any) {
-            let errorMessage = "An unexpected error occurred";
-            if (axios.isAxiosError(error)) {
-                errorMessage = error.response?.data?.message || error.message;
-            } else if (error instanceof Error) {
-                errorMessage = error.message;
-            }
-            console.error("Fetch Details Error:", errorMessage);
-            return rejectWithValue(errorMessage);
-        }
-    },
-    {
-        condition: (coords, { getState }) => {
-            const { details } = getState();
-
-            if (details.status === 'loading') {
-                return false;
-            }
-
-            const lastCoords = details.selectedLocation?.coords;
-            if (lastCoords) {
-                const isSameLat = lastCoords.lat.toFixed(4) === coords.lat.toFixed(4);
-                const isSameLng = lastCoords.lng.toFixed(4) === coords.lng.toFixed(4);
-
-                if (isSameLat && isSameLng) {
-                    return false;
-                }
-            }
-
-            return true;
-        }
-    }
-);
-</file>
-
-<file path="src/app/page.tsx">
-'use client'
-import { useDispatch, useSelector } from "react-redux";
-import { AppDispatch, RootState } from "./store";
-import { useEffect } from "react";
-import Map from "@/components/map-view/main_map/Map";
-import { fetchCloser } from "@/store/details/api/fetchClosestPlacesThunk";
-import { addToRecentSearched } from "@/store/details/detailsSlice";
-
-type Coords = {
-  name?: string
-  lat: number,
-  lng: number
-}
-
-export default function Home() {
-
-  const dispatch = useDispatch<AppDispatch>()
-  const COORDS_EXPIRY_MS = 24 * 60 * 60 * 1000
-
-  useEffect(() => {
-    const saved = localStorage.getItem('userCoords')
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved)
-        const isExpired = Date.now() - parsed.timestamp > COORDS_EXPIRY_MS
-
-        if (!isExpired) {
-          dispatch(fetchCloser({ lat: parsed.lat, lng: parsed.lng }))
-          return
-        }
-      } catch (e) {
-        console.error("Parse error", e)
-      }
-    }
-
-    navigator.geolocation.getCurrentPosition(
-      (p) => {
-        const coords = {
-          lat: p.coords.latitude,
-          lng: p.coords.longitude,
-          timestamp: Date.now()
-        }
-        dispatch(fetchCloser(coords))
-        localStorage.setItem('userCoords', JSON.stringify(coords))
-      },
-      (e) => console.log(`cant get location: ${e}`)
-    )
-  }, [])
-
-  // get recent
-  useEffect(() => {
-    const recentFromLocalStorage: (string | null) = localStorage.getItem('recent')
-    let recentSearched: (Coords | null) = null
-    if (recentFromLocalStorage) { recentSearched = JSON.parse(recentFromLocalStorage) }
-    if (recentSearched) { dispatch(addToRecentSearched(recentSearched)) }
-  }, [])
-
-  return (
-    <>
-      <Map />
-    </>
-  );
-}
-</file>
-
-<file path="src/components/map-view/main_map/Map.tsx">
-// src/components/map-view/main_map/Map.tsx
-"use client";
-import { useMemo, Suspense } from "react";
-import { MapProvider } from "react-map-gl/maplibre";
-import { useSelector } from "react-redux";
-import { RootState } from "@/app/store";
-import maplibregl from 'maplibre-gl';
-
-import Sidebar from "../side_bar/Sidebar";
-import Btns from "../Btns";
-import dynamic from "next/dynamic";
-
-const TripInfo = dynamic(() => import("./TripInfo"), { ssr: false })
-const MapComponent = dynamic(() => import("./MapComponent"), { ssr: false })
-
-
-if (typeof window !== "undefined" && maplibregl.getRTLTextPluginStatus() === 'unavailable') {
-    maplibregl.setRTLTextPlugin('https://unpkg.com/@mapbox/mapbox-gl-rtl-text@0.2.3/mapbox-gl-rtl-text.min.js', true);
-}
-
-export default function Map() {
-
-    const mode = useSelector((state: RootState) => state.theme.mode);
-    const { coordinates, status } = useSelector((state: RootState) => state.trip);
-    const map_key = process.env.NEXT_PUBLIC_MAP_KEY;
-
-    const mapStyle = useMemo(() => (
-        mode === 'dark'
-            ? `https://api.maptiler.com/maps/streets-v2-dark/style.json?key=${map_key}`
-            : `https://api.maptiler.com/maps/streets-v2/style.json?key=${map_key}`
-    ), [mode, map_key]);
-
-    const showBar = status === 'loading' || coordinates.length > 0; // true || false
-
-    return (
-        <main className="relative h-[100dvh] w-full overflow-hidden bg-background">
-            <MapProvider>
-                <div className="absolute inset-0 z-0">
-                    <Suspense fallback={<div className="h-full w-full bg-muted animate-pulse" />}>
-                        <MapComponent mapStyle={mapStyle} />
-                    </Suspense>
-                </div>
-                <div className="relative z-10 pointer-events-none h-full w-full">
-                    <Suspense>
-                        <Sidebar />
-                    </Suspense>
-                    <Btns />
-                    {showBar && (
-                        <div className="md:flex hidden absolute bottom-24 md:bottom-6 left-1/2 -translate-x-1/2 z-20 pointer-events-auto">
-                            <TripInfo className="bg-card border border-border rounded-md text-xs font-bold text-foreground transition-all shadow-md px-5 py-3" />
-                        </div>
-                    )}
-                </div>
-            </MapProvider>
-        </main>
-    );
-}
-</file>
-
-<file path="src/components/map-view/side_bar/_components/results/quick_access/QuickBtns.tsx">
-'use client'
-import { CarFront } from 'lucide-react'
-import React, { useCallback, useEffect, useRef, memo } from 'react'
-import { useDispatch, useSelector } from 'react-redux'
-import { AppDispatch, RootState } from '@/app/store'
-import { fetchTripPoints } from '@/store/trip/api/fetchTripPoints'
-import { clearTrip, setUserLocationForTrip } from '@/store/trip/tripSlice'
-import { toast } from 'sonner'
-import OptionsBtn from './OptionsBtn'
-import { useRouter, useSearchParams } from 'next/navigation'
-
-type Props = {
-    coords: { lat: number; lng: number }
-}
-
-type RefCoords = {
-    lat: number; lng: number
-}
-
-const QuickBtns = memo(({ coords }: Props) => {
-    const router = useRouter()
-    const watchIdRef = useRef<number | null>(null)
-    const coordsRef = useRef<RefCoords | null>(null)
-    const currentRequestRef = useRef<any>(null)
-    const dispatch = useDispatch<AppDispatch>()
-    const { isTrip } = useSelector((d: RootState) => d.trip)
-    const [isOnline, setIsOnline] = React.useState(true)
-
-    const searchParams = useSearchParams()
-
-    useEffect(() => {
-        setIsOnline(window.navigator.onLine)
-        const updateStatus = () => setIsOnline(window.navigator.onLine)
-        window.addEventListener('online', updateStatus)
-        window.addEventListener('offline', updateStatus)
-        return () => {
-            window.removeEventListener('online', updateStatus)
-            window.removeEventListener('offline', updateStatus)
-        }
-    }, [])
-
-    useEffect(() => {
-        return () => {
-            if (watchIdRef.current !== null) {
-                navigator.geolocation.clearWatch(watchIdRef.current)
-            }
-            if (currentRequestRef.current) {
-                currentRequestRef.current.abort()
-            }
-        }
-    }, [])
-
-    const stopTracking = useCallback(() => {
-        if (watchIdRef.current !== null) {
-            navigator.geolocation.clearWatch(watchIdRef.current)
-            watchIdRef.current = null
-        }
-        if (currentRequestRef.current) {
-            currentRequestRef.current.abort()
-        }
-        coordsRef.current = null
-        dispatch(clearTrip())
-        dispatch(setUserLocationForTrip(null))
-    }, [dispatch])
-
-    const handleStartTrip = useCallback(() => {
-        if (!isOnline) {
-            toast.error("Connection error! Please check your internet.")
-            return
-        }
-        if (isTrip) {
-            stopTracking()
-            return
-        }
-        if (!navigator.geolocation) {
-            toast.error("Location access not supported by your browser")
-            return
-        }
-
-        const toastId = toast.loading("Finding your location...")
-
-        watchIdRef.current = navigator.geolocation.watchPosition(
-            async (p) => {
-                toast.dismiss(toastId)
-                const currentLat = p.coords.latitude
-                const currentLng = p.coords.longitude
-
-                dispatch(setUserLocationForTrip({ lat: currentLat, lng: currentLng }))
-
-                if (coordsRef.current) {
-                    const latDiff = Math.abs(coordsRef.current.lat - currentLat)
-                    const lngDiff = Math.abs(coordsRef.current.lng - currentLng)
-                    if (latDiff < 0.0003 && lngDiff < 0.0003) return
-                }
-
-                try {
-                    if (currentRequestRef.current) {
-                        currentRequestRef.current.abort()
-                    }
-
-                    const request = dispatch(fetchTripPoints({
-                        sCoords: { lat: currentLat, lng: currentLng },
-                        eCoords: { lat: coords.lat, lng: coords.lng }
-                    }))
-
-                    currentRequestRef.current = request
-
-                    await request.unwrap()
-
-                    coordsRef.current = { lat: currentLat, lng: currentLng }
-
-                    const params = new URLSearchParams(searchParams.toString())
-                    if (params.has('active')) {
-                        params.delete('active')
-                        router.push(`?${params.toString()}`, { scroll: false })
-                    }
-
-                } catch (err: any) {
-                    if (err !== 'cancelled' && err?.name !== 'AbortError') {
-                        toast.error("Could not update route")
-                    }
-                }
-            },
-            () => {
-                toast.dismiss(toastId)
-                toast.error("Enable GPS to start navigation")
-            },
-            { enableHighAccuracy: true, maximumAge: 2000, timeout: 5000 }
-        )
-    }, [coords, dispatch, isTrip, isOnline, stopTracking, searchParams, router])
-
-    return (
-        <div className="flex gap-2 w-full relative">
-            <button
-                onClick={handleStartTrip}
-                type='button'
-                disabled={!isOnline}
-                className={`flex-1 flex justify-center items-center gap-2 py-3 rounded-md transition-all uppercase text-[11px] font-bold tracking-[2px] shadow-lg active:scale-[0.98]
-                    ${isTrip
-                        ? 'bg-destructive text-white shadow-red-500/20'
-                        : isOnline
-                            ? 'bg-[#0C79FE] text-white shadow-blue-500/20 hover:brightness-110'
-                            : 'bg-muted-foreground text-white opacity-70 cursor-not-allowed'
-                    }`}
-            >
-                <CarFront size={18} strokeWidth={2.5} />
-                <span>{isTrip ? 'Stop' : 'Start'}</span>
-            </button>
-            <OptionsBtn coords={coords} />
-        </div>
-    )
-}, (prevProps, nextProps) => {
-    return (
-        prevProps.coords.lat === nextProps.coords.lat &&
-        prevProps.coords.lng === nextProps.coords.lng
-    )
-})
-
-export default QuickBtns
-</file>
-
-<file path="src/components/map-view/side_bar/_components/results/Results.tsx">
-'use client'
-import { useSelector, useDispatch, shallowEqual } from 'react-redux'
-import dynamic from 'next/dynamic'
-import { useRouter, useSearchParams } from 'next/navigation'
-import { useEffect, memo, useCallback } from 'react'
-
-import { RootState, AppDispatch } from '@/app/store'
-import { clearDetails } from '@/store/details/detailsSlice'
-import { deleteSearch } from '@/store/global_data/dataSlice'
-import { clearTrip } from '@/store/trip/tripSlice'
-import MyCategory from './categories/MyCategory'
-
-import { SearchX, WifiOff } from 'lucide-react'
-
-const DetailCard = dynamic(() => import('./DetailCard'), { ssr: false })
-const LocationCard = dynamic(() => import('./LocationCard'), { ssr: false })
-
-const renderSkeleton = () => (
-    <div className="space-y-3 px-1">
-        {[1, 2, 3, 4, 5].map((i) => (
-            <div key={i} className="flex items-center gap-3 p-3 bg-secondary/30 rounded-xl border border-border/20 animate-pulse">
-                <div className="size-9 shrink-0 rounded-full bg-muted/50" />
-                <div className="flex flex-col flex-1 gap-2 overflow-hidden">
-                    <div className="h-3.5 w-3/4 bg-muted/60 rounded-md" />
-                    <div className="h-2.5 w-1/2 bg-muted/40 rounded-md" />
-                </div>
-            </div>
-        ))}
-    </div>
-);
-
-const renderError = (message: string) => (
-    <div className="flex flex-col items-center justify-center py-12 gap-3 text-center px-4">
-        <div className="p-3 bg-destructive/10 rounded-full">
-            <WifiOff className="size-6 text-destructive" />
-        </div>
-        <p className="text-sm font-medium text-destructive">{message}</p>
-    </div>
-);
-
-function Results() {
-    const dispatch = useDispatch<AppDispatch>()
-    const { results, status, selectedLocation, detailsStatus, searchTerm } =
-        useSelector((state: RootState) => ({
-            results: state.location.results,
-            status: state.location.status,
-            selectedLocation: state.details.selectedLocation,
-            detailsStatus: state.details.status,
-            searchTerm: state.data.inputSearch,
-        }), shallowEqual);
-
-    const router = useRouter()
-    const searchParams = useSearchParams()
-    const lng = searchParams.get('lng')
-    const lat = searchParams.get('lat')
-    const hasParams = Boolean(lng && lat)
-
-    useEffect(() => {
-        if (!hasParams) dispatch(clearDetails())
-    }, [hasParams, dispatch])
-
-    const onBackFunction = useCallback(() => {
-        router.push('/', { scroll: false })
-        dispatch(clearTrip())
-    }, [router])
-
-    const handleGetLocationDetails = useCallback((coords: { lat: number; lng: number }) => {
-        router.push(`?lat=${coords.lat}&lng=${coords.lng}`, { scroll: false });
-        dispatch(deleteSearch());
-    }, [router, dispatch]);
-
-    if (status === 'loading' || detailsStatus === 'loading') return renderSkeleton()
-
-    if (detailsStatus === 'error') return renderError("Couldn't load location details. Check your connection.")
-
-    return (
-        <div className="flex-1 overflow-y-auto overscroll-contain hide-scrollbar">
-            {searchTerm && searchTerm.trim() !== "" ? (
-                <>
-                    {status === 'error' ? (
-                        renderError("Search failed. Check your connection.")
-                    ) : results && results.length > 0 ? (
-                        <div className="space-y-3 animate-in fade-in duration-500">
-                            {results.map((item: any) => (
-                                <LocationCard key={item.id} item={item} onClick={handleGetLocationDetails} />
-                            ))}
-                        </div>
-                    ) : (
-                        status === 'success' && (
-                            <div className="flex flex-col items-center justify-center py-12 gap-3">
-                                <div className="p-3 bg-muted rounded-full">
-                                    <SearchX className="size-6 text-muted-foreground" />
-                                </div>
-                                <p className="text-sm text-muted-foreground">No results found</p>
-                            </div>
-                        )
-                    )}
-                </>
-            ) : (
-                <>
-                    {selectedLocation ? (
-                        <div className='space-y-3'>
-                            <DetailCard location={selectedLocation} onBack={onBackFunction} />
-                        </div>
-                    ) : (
-                        status === 'idle' && <MyCategory />
-                    )}
-                </>
-            )}
-        </div>
-    );
-}
-
-export default memo(Results);
 </file>
 
 <file path="src/components/map-view/side_bar/_components/SearchInput.tsx">
@@ -2608,6 +2232,54 @@ export default React.memo(Suggestion);
 }
 </file>
 
+<file path="README.md">
+# 📍 GeoVision | Next-Generation Interactive Mapping & Navigation
+
+**GeoVision** is a high-performance map application built with **Next.js 15**, designed to provide a seamless user experience for navigation and location discovery. It features a robust routing system, real-time location tracking, and a highly interactive UI optimized for both mobile and desktop users.
+
+---
+
+## 🌐 Live Demo
+<a href='https://path-wise-one.vercel.app/' target='_blank'>search-engine/</a>
+
+
+---
+
+## 🚀 Tech Stack
+
+Selected for scalability, performance, and modern developer experience:
+
+* **Framework:** [Next.js 15](https://nextjs.org/) (App Router)
+* **State Management:** [Redux Toolkit](https://redux-toolkit.js.org/)
+* **Mapping:** [MapLibre GL](https://maplibre.org/) & [React Map GL](http://visgl.github.io/react-map-gl/)
+* **Styling:** [Tailwind CSS](https://tailwindcss.com/) & [Shadcn UI](https://ui.shadcn.com/)
+* **Animations:** [Framer Motion](https://www.framer.com/motion/)
+* **Icons:** [Lucide React](https://lucide.dev/)
+* **Data Fetching:** [Axios](https://axios-http.com/)
+
+---
+
+## ✨ Key Features
+
+### 🗺️ Intelligent Routing System
+* **Dynamic Routes:** Real-time driving directions calculated via **MapTiler API**.
+* **Adaptive Camera Modes:** Supports **Overview Mode** for full-path visibility and **Navigation Mode** for a focused 3D perspective with high zoom on the user's position.
+* **High-Visibility Paths:** Routes are rendered using a **Double-layered Polyline** (white outline + blue core) to ensure maximum contrast across all map styles.
+
+### 🔍 Advanced Search & Discovery
+* **Smart Debouncing:** Search inputs are debounced to optimize API usage and provide a smooth typing experience.
+* **Persistent History:** Recent searches are stored in **LocalStorage** for instant access during future sessions.
+* **Reverse Geocoding:** Get precise location details instantly by clicking anywhere on the map.
+
+### 📱 Premium Interactive UI
+* **Responsive Sidebar:** A mobile-first dynamic drawer that supports **Drag-to-resize** gestures powered by Framer Motion.
+* **Theme Synchronization:** Full support for **Dark & Light Modes**, with map tiles and layer colors updating dynamically to match the system theme.
+
+### ⚡ Performance Engineering
+* **Declarative Mapping:** Map layers and sources are fully reactive, driven by the centralized Redux state.
+* **Optimized Rendering:** Heavy use of `React.memo`, `useCallback`, and `useMemo` to maintain 60FPS performance during map interactions and sidebar transitions.
+</file>
+
 <file path="src/app/globals.css">
 @import "tailwindcss";
 @import "tw-animate-css";
@@ -2759,6 +2431,375 @@ button {
 }
 </file>
 
+<file path="src/app/store.ts">
+import { configureStore } from '@reduxjs/toolkit'
+import langReducer from '../store/lang/languageSlice'
+import themeReducer from '../store/theme/themeSlice'
+import locationReducer from '../store/location/locationSlice'
+import detailsReducer from '../store/details/detailsSlice'
+import dataReducer from '../store/global_data/dataSlice'
+import tripReducer from '../store/trip/tripSlice'
+
+export const store = configureStore({
+    reducer: {
+        language: langReducer,
+        theme: themeReducer,
+        location: locationReducer,
+        details: detailsReducer,
+        data: dataReducer,
+        trip: tripReducer,
+    },
+})
+
+// Infer the `RootState` and `AppDispatch` types from the store itself
+export type RootState = ReturnType<typeof store.getState>
+// Inferred type: {posts: PostsState, comments: CommentsState, users: UsersState}
+export type AppDispatch = typeof store.dispatch
+</file>
+
+<file path="src/components/map-view/main_map/Map.tsx">
+// src/components/map-view/main_map/Map.tsx
+"use client";
+import { useMemo, Suspense } from "react";
+import { MapProvider } from "react-map-gl/maplibre";
+import { useSelector } from "react-redux";
+import { RootState } from "@/app/store";
+import maplibregl from 'maplibre-gl';
+
+import Sidebar from "../side_bar/Sidebar";
+import Btns from "../Btns";
+import dynamic from "next/dynamic";
+
+const TripInfo = dynamic(() => import("./TripInfo"), { ssr: false })
+const MapComponent = dynamic(() => import("./MapComponent"), { ssr: false })
+
+
+if (typeof window !== "undefined" && maplibregl.getRTLTextPluginStatus() === 'unavailable') {
+    maplibregl.setRTLTextPlugin('https://unpkg.com/@mapbox/mapbox-gl-rtl-text@0.2.3/mapbox-gl-rtl-text.min.js', true);
+}
+
+export default function Map() {
+
+    const mode = useSelector((state: RootState) => state.theme.mode);
+    const { coordinates, status } = useSelector((state: RootState) => state.trip);
+    const map_key = process.env.NEXT_PUBLIC_MAP_KEY;
+
+    const mapStyle = useMemo(() => (
+        mode === 'dark'
+            ? `https://api.maptiler.com/maps/streets-v2-dark/style.json?key=${map_key}`
+            : `https://api.maptiler.com/maps/streets-v2/style.json?key=${map_key}`
+    ), [mode, map_key]);
+
+    const showBar = status === 'loading' || coordinates.length > 0; // true || false
+
+    return (
+        <main className="relative h-[100dvh] w-full overflow-hidden bg-background">
+            <MapProvider>
+                <div className="absolute inset-0 z-0">
+                    <Suspense fallback={<div className="h-full w-full bg-muted animate-pulse" />}>
+                        <MapComponent mapStyle={mapStyle} />
+                    </Suspense>
+                </div>
+                <div className="relative z-10 pointer-events-none h-full w-full">
+                    <Suspense>
+                        <Sidebar />
+                    </Suspense>
+                    <Btns />
+                    {showBar && (
+                        <div className="md:flex hidden absolute bottom-24 md:bottom-6 left-1/2 -translate-x-1/2 z-20 pointer-events-auto">
+                            <TripInfo className="bg-card border border-border rounded-md text-xs font-bold text-foreground transition-all shadow-md px-5 py-3" />
+                        </div>
+                    )}
+                </div>
+            </MapProvider>
+        </main>
+    );
+}
+</file>
+
+<file path="src/components/map-view/side_bar/_components/results/quick_access/QuickBtns.tsx">
+'use client'
+import { CarFront } from 'lucide-react'
+import React, { useCallback, useEffect, useRef, memo } from 'react'
+import { useDispatch, useSelector } from 'react-redux'
+import { AppDispatch, RootState } from '@/app/store'
+import { fetchTripPoints } from '@/store/trip/api/fetchTripPoints'
+import { clearTrip, setUserLocationForTrip } from '@/store/trip/tripSlice'
+import { toast } from 'sonner'
+import OptionsBtn from './OptionsBtn'
+import { useRouter, useSearchParams } from 'next/navigation'
+
+type Props = {
+    coords: { lat: number; lng: number }
+}
+
+type RefCoords = {
+    lat: number; lng: number
+}
+
+const QuickBtns = memo(({ coords }: Props) => {
+    const router = useRouter()
+    const watchIdRef = useRef<number | null>(null)
+    const coordsRef = useRef<RefCoords | null>(null)
+    const currentRequestRef = useRef<any>(null)
+    const dispatch = useDispatch<AppDispatch>()
+    const { isTrip } = useSelector((d: RootState) => d.trip)
+    const [isOnline, setIsOnline] = React.useState(true)
+
+    const searchParams = useSearchParams()
+
+    useEffect(() => {
+        setIsOnline(window.navigator.onLine)
+        const updateStatus = () => setIsOnline(window.navigator.onLine)
+        window.addEventListener('online', updateStatus)
+        window.addEventListener('offline', updateStatus)
+        return () => {
+            window.removeEventListener('online', updateStatus)
+            window.removeEventListener('offline', updateStatus)
+        }
+    }, [])
+
+    useEffect(() => {
+        return () => {
+            if (watchIdRef.current !== null) {
+                navigator.geolocation.clearWatch(watchIdRef.current)
+            }
+            if (currentRequestRef.current) {
+                currentRequestRef.current.abort()
+            }
+        }
+    }, [])
+
+    const stopTracking = useCallback(() => {
+        if (watchIdRef.current !== null) {
+            navigator.geolocation.clearWatch(watchIdRef.current)
+            watchIdRef.current = null
+        }
+        if (currentRequestRef.current) {
+            currentRequestRef.current.abort()
+        }
+        coordsRef.current = null
+        dispatch(clearTrip())
+        dispatch(setUserLocationForTrip(null))
+    }, [dispatch])
+
+    const handleStartTrip = useCallback(() => {
+        if (!isOnline) {
+            toast.error("Connection error! Please check your internet.")
+            return
+        }
+        if (!navigator.geolocation) {
+            toast.error("Location access not supported by your browser")
+            return
+        }
+
+
+        if (isTrip) {
+            stopTracking()
+            return
+        }
+
+        const toastId = toast.loading("Finding your location...")
+
+        watchIdRef.current = navigator.geolocation.watchPosition(
+            async (p) => {
+                toast.dismiss(toastId) // 1
+                const currentLat = p.coords.latitude
+                const currentLng = p.coords.longitude
+
+                dispatch(setUserLocationForTrip({ lat: currentLat, lng: currentLng }))
+                if (coordsRef.current) {
+                    const latDiff = Math.abs(coordsRef.current.lat - currentLat)
+                    const lngDiff = Math.abs(coordsRef.current.lng - currentLng)
+                    if (latDiff < 0.0003 && lngDiff < 0.0003) return
+                }
+                try {
+                    // clear ant request
+                    if (currentRequestRef.current) {
+                        currentRequestRef.current.abort();
+                        currentRequestRef.current = null;
+                    }
+
+                    const promise = dispatch(fetchTripPoints({
+                        sCoords: { lat: currentLat, lng: currentLng },
+                        eCoords: { lat: coords.lat, lng: coords.lng }
+                    }));
+                    currentRequestRef.current = promise;
+                    await promise.unwrap();
+
+                    coordsRef.current = { lat: currentLat, lng: currentLng };
+                    const params = new URLSearchParams(searchParams.toString());
+                    if (params.has('active')) {
+                        params.delete('active');
+                        router.push(`?${params.toString()}`, { scroll: false });
+                    }
+
+                } catch (err: any) {
+                    if (err?.name === 'AbortError' || err === 'cancelled' || err?.message === 'canceled') {
+                        console.log("Request fetch aborted as expected");
+                    } else {
+                        toast.error("Could not update route");
+                    }
+                } finally {
+                    if (currentRequestRef.current?.requestId === currentRequestRef.current?.requestId) {
+                    }
+                }
+            },
+            () => {
+                toast.dismiss(toastId)
+                toast.error("Enable GPS to start navigation")
+            },
+            { enableHighAccuracy: true, maximumAge: 2000, timeout: 5000 }
+        )
+    }, [coords, dispatch, isTrip, isOnline, stopTracking, searchParams, router])
+
+    return (
+        <div className="flex gap-2 w-full relative">
+            <button
+                onClick={handleStartTrip}
+                type='button'
+                disabled={!isOnline}
+                className={`flex-1 flex justify-center items-center gap-2 py-3 rounded-md transition-all uppercase text-[11px] font-bold tracking-[2px] shadow-lg active:scale-[0.98]
+                    ${isTrip
+                        ? 'bg-destructive text-white shadow-red-500/20'
+                        : isOnline
+                            ? 'bg-[#0C79FE] text-white shadow-blue-500/20 hover:brightness-110'
+                            : 'bg-muted-foreground text-white opacity-70 cursor-not-allowed'
+                    }`}
+            >
+                <CarFront size={18} strokeWidth={2.5} />
+                <span>{isTrip ? 'Stop' : 'Start'}</span>
+            </button>
+            <OptionsBtn coords={coords} />
+        </div>
+    )
+}, (prevProps, nextProps) => {
+    return (
+        prevProps.coords.lat === nextProps.coords.lat &&
+        prevProps.coords.lng === nextProps.coords.lng
+    )
+})
+
+export default QuickBtns
+</file>
+
+<file path="src/components/map-view/side_bar/_components/results/Results.tsx">
+'use client'
+import { useSelector, useDispatch, shallowEqual } from 'react-redux'
+import dynamic from 'next/dynamic'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { useEffect, memo, useCallback } from 'react'
+
+import { RootState, AppDispatch } from '@/app/store'
+import { clearDetails } from '@/store/details/detailsSlice'
+import { deleteSearch } from '@/store/global_data/dataSlice'
+import { clearTrip } from '@/store/trip/tripSlice'
+import MyCategory from './categories/MyCategory'
+
+import { SearchX, WifiOff } from 'lucide-react'
+
+const DetailCard = dynamic(() => import('./DetailCard'), { ssr: false })
+const LocationCard = dynamic(() => import('./LocationCard'), { ssr: false })
+
+const renderSkeleton = () => (
+    <div className="space-y-3 px-1">
+        {[1, 2, 3, 4, 5].map((i) => (
+            <div key={i} className="flex items-center gap-3 p-3 bg-secondary/30 rounded-xl border border-border/20 animate-pulse">
+                <div className="size-9 shrink-0 rounded-full bg-muted/50" />
+                <div className="flex flex-col flex-1 gap-2 overflow-hidden">
+                    <div className="h-3.5 w-3/4 bg-muted/60 rounded-md" />
+                    <div className="h-2.5 w-1/2 bg-muted/40 rounded-md" />
+                </div>
+            </div>
+        ))}
+    </div>
+);
+
+const renderError = (message: string) => (
+    <div className="flex flex-col items-center justify-center py-12 gap-3 text-center px-4">
+        <div className="p-3 bg-destructive/10 rounded-full">
+            <WifiOff className="size-6 text-destructive" />
+        </div>
+        <p className="text-sm font-medium text-destructive">{message}</p>
+    </div>
+);
+
+function Results() {
+    const dispatch = useDispatch<AppDispatch>()
+    const { results, status, selectedLocation, detailsStatus, searchTerm } =
+        useSelector((state: RootState) => ({
+            results: state.location.results,
+            status: state.location.status,
+            selectedLocation: state.details.selectedLocation,
+            detailsStatus: state.details.status,
+            searchTerm: state.data.inputSearch,
+        }), shallowEqual);
+
+    const router = useRouter()
+    const searchParams = useSearchParams()
+    const lng = searchParams.get('lng')
+    const lat = searchParams.get('lat')
+    const hasParams = Boolean(lng && lat)
+
+    useEffect(() => {
+        if (!hasParams) dispatch(clearDetails())
+    }, [hasParams, dispatch])
+
+    const onBackFunction = useCallback(() => {
+        router.push('/', { scroll: false })
+        dispatch(clearTrip())
+    }, [router])
+
+    const handleGetLocationDetails = useCallback((coords: { lat: number; lng: number }) => {
+        router.push(`?lat=${coords.lat}&lng=${coords.lng}`, { scroll: false });
+        dispatch(deleteSearch());
+    }, [router, dispatch]);
+
+    if (status === 'loading' || detailsStatus === 'loading') return renderSkeleton()
+
+    if (detailsStatus === 'error') return renderError("Couldn't load location details. Check your connection.")
+
+    return (
+        <div className="flex-1 overflow-y-auto overscroll-contain hide-scrollbar">
+            {searchTerm && searchTerm.trim() !== "" ? (
+                <>
+                    {status === 'error' ? (
+                        renderError("Search failed. Check your connection.")
+                    ) : results && results.length > 0 ? (
+                        <div className="space-y-3 animate-in fade-in duration-500">
+                            {results.map((item: any) => (
+                                <LocationCard key={item.id} item={item} onClick={handleGetLocationDetails} />
+                            ))}
+                        </div>
+                    ) : (
+                        status === 'success' && (
+                            <div className="flex flex-col items-center justify-center py-12 gap-3">
+                                <div className="p-3 bg-muted rounded-full">
+                                    <SearchX className="size-6 text-muted-foreground" />
+                                </div>
+                                <p className="text-sm text-muted-foreground">No results found</p>
+                            </div>
+                        )
+                    )}
+                </>
+            ) : (
+                <>
+                    {selectedLocation ? (
+                        <div className='space-y-3'>
+                            <DetailCard location={selectedLocation} onBack={onBackFunction} />
+                        </div>
+                    ) : (
+                        status === 'idle' && <MyCategory />
+                    )}
+                </>
+            )}
+        </div>
+    );
+}
+
+export default memo(Results);
+</file>
+
 <file path="src/app/layout.tsx">
 import type { Metadata } from "next";
 import { Noto_Sans_Arabic, Geist_Mono } from "next/font/google";
@@ -2842,30 +2883,99 @@ export default function RootLayout({
 }
 </file>
 
-<file path="src/app/store.ts">
-import { configureStore } from '@reduxjs/toolkit'
-import langReducer from '../store/lang/languageSlice'
-import themeReducer from '../store/theme/themeSlice'
-import locationReducer from '../store/location/locationSlice'
-import detailsReducer from '../store/details/detailsSlice'
-import dataReducer from '../store/global_data/dataSlice'
-import tripReducer from '../store/trip/tripSlice'
+<file path="src/components/map-view/Btns.tsx">
+'use client'
+import { LocateFixed, MoonIcon, SunIcon } from 'lucide-react'
+import React, { memo, useCallback, useEffect, useState } from 'react'
+import { toggleTheme } from "@/store/theme/themeSlice";
+import { useDispatch, useSelector } from "react-redux";
+import { RootState } from '@/app/store';
+import { useMap } from 'react-map-gl/maplibre';
+import { useRouter } from 'next/navigation';
+import { useRecentSearches } from '@/hooks/useAddToRecent';
 
-export const store = configureStore({
-    reducer: {
-        language: langReducer,
-        theme: themeReducer,
-        location: locationReducer,
-        details: detailsReducer,
-        data: dataReducer,
-        trip: tripReducer,
-    },
+const Btns = memo(function Btns() {
+    const mode = useSelector((m: RootState) => m.theme.mode);
+    const [mounted, setMounted] = useState(false);
+
+    const dispatch = useDispatch();
+    const { "main-map": map } = useMap();
+
+    useEffect(() => {
+        setMounted(true);
+    }, []);
+
+    const router = useRouter()
+    const { addToRecent } = useRecentSearches()
+    const COORDS_EXPIRY_MS = 24 * 60 * 60 * 1000
+
+    const handleGoToUserLocation = useCallback(() => {
+        if (!navigator.geolocation) return;
+
+        const saved = localStorage.getItem('userCoords');
+        if (saved) {
+            try {
+                const parsed = JSON.parse(saved);
+                const isExpired = Date.now() - parsed.timestamp > COORDS_EXPIRY_MS;
+
+                if (!isExpired) {
+                    router.push(`?lat=${parsed.lat}&lng=${parsed.lng}&m=true`);
+                    addToRecent({ lat: parsed.lat, lng: parsed.lng });
+                    return;
+                }
+            } catch (e) {
+                localStorage.removeItem('userCoords');
+            }
+        }
+
+        navigator.geolocation.getCurrentPosition(
+            (p) => {
+                const coords = {
+                    lat: p.coords.latitude,
+                    lng: p.coords.longitude,
+                    timestamp: Date.now()
+                };
+                localStorage.setItem('userCoords', JSON.stringify(coords));
+                router.push(`?lat=${coords.lat}&lng=${coords.lng}&m=true`);
+                addToRecent({ lat: coords.lat, lng: coords.lng });
+            },
+            (error) => {
+                const msg = error.code === 1 ? 'Location access denied' : 'Could not get location';
+                console.error(msg);
+            }
+        );
+    }, [map, router, addToRecent]);
+
+    return (
+        <div className="bg-card/98 absolute right-1 top-1 md:right-8 md:top-8 z-20 flex flex-col gap-0 pointer-events-auto rounded-[8px] overflow-hidden">
+            {/* theme-btn */}
+            <button
+                type='button'
+                onClick={() => dispatch(toggleTheme())}
+                className="size-12 md:size-14 border-b border-border flex items-center justify-center active:scale-90 transition-all"
+            >
+                {!mounted ? (
+                    <div className="size-6 animate-pulse bg-muted rounded-full" />
+                ) : mode === 'dark' ? (
+                    <SunIcon className="size-6 text-amber-400" />
+                ) : (
+                    <MoonIcon className="size-6 text-primary" />
+                )}
+            </button>
+
+            {/* location-btn */}
+            <button
+                type='button'
+                onClick={handleGoToUserLocation}
+                className="size-12 md:size-14 flex items-center justify-center hover:bg-secondary active:scale-90 transition-all text-foreground/90"
+            >
+                <LocateFixed />
+            </button>
+        </div>
+    )
 })
 
-// Infer the `RootState` and `AppDispatch` types from the store itself
-export type RootState = ReturnType<typeof store.getState>
-// Inferred type: {posts: PostsState, comments: CommentsState, users: UsersState}
-export type AppDispatch = typeof store.dispatch
+export default Btns;
 </file>
 
 <file path="src/components/map-view/side_bar/_components/results/DetailCard.tsx">
@@ -2994,9 +3104,7 @@ export default memo(DetailCardComponent);
 <file path="src/components/map-view/side_bar/Sidebar.tsx">
 'use client'
 
-import React, { useRef, useEffect, useMemo } from 'react'
-import { motion, useAnimationControls, useDragControls, PanInfo } from 'framer-motion'
-import { useOutsideClick } from '@/hooks/useOutsideClick'
+import React, { useRef, useEffect, useCallback, useState } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import NearbyPlacesView from '@/components/views/NearbyPlacesView'
 import SearchInput from './_components/SearchInput'
@@ -3010,21 +3118,35 @@ import { ScanEye } from 'lucide-react'
 import { useSelector } from 'react-redux'
 import { RootState } from '@/app/store'
 
-const POSITIONS = {
-    bottom: 0.82,
-    middle: 0.50,
-    top: 0.10,
+const SNAP = {
+    peek: 0.78,
+    mid: 0.45,
+    full: 0.08,
+    hidden: 0.92,
+}
+
+const SPRING_CONFIG = 'cubic-bezier(0.32, 0.72, 0, 1)' // Apple-style spring feel
+const ANIM_MS = 380
+
+function snapY(pct: number) {
+    return typeof window !== 'undefined' ? window.innerHeight * pct : 0
+}
+
+function nearestSnap(y: number, snaps: number[]): number {
+    return snaps.reduce((prev, cur) =>
+        Math.abs(cur - y) < Math.abs(prev - y) ? cur : prev
+    )
 }
 
 function Sidebar() {
     const searchParams = useSearchParams()
     const router = useRouter()
-    const controls = useAnimationControls()
-    const dragControls = useDragControls()
-    const sidebarRef = useRef<HTMLDivElement>(null)
+    const sheetRef = useRef<HTMLDivElement>(null)
     const scrollRef = useRef<HTMLDivElement>(null)
+    const dragState = useRef({ active: false, startY: 0, startTranslate: 0, lastY: 0, lastT: 0, vel: 0 })
+    const currentY = useRef(0)
 
-    const isMobile = useMediaQuery("(max-width: 767px)")
+    const isMobile = useMediaQuery('(max-width: 767px)')
     const { coordinates } = useSelector((state: RootState) => state.trip)
     const isNavigating = coordinates.length > 0
 
@@ -3034,95 +3156,178 @@ function Sidebar() {
     const lat = searchParams.get('lat')
     const selectedLocation = !!(long && lat)
 
-    const getPos = (pct: number) => typeof window !== 'undefined' ? window.innerHeight * pct : 0
-
-    const targetY = useMemo(() => {
+    const getTargetY = useCallback((): number => {
         if (!isMobile) return 0
-        if (view || isOpen) return getPos(POSITIONS.top)
-        if (selectedLocation) return getPos(POSITIONS.middle)
-        return getPos(POSITIONS.bottom)
-    }, [isMobile, view, isOpen, selectedLocation])
+        if (isNavigating) return snapY(SNAP.hidden)
+        if (view || isOpen) return snapY(SNAP.full)
+        if (selectedLocation) return snapY(SNAP.mid)
+        return snapY(SNAP.peek)     // default: peek
+    }, [isMobile, isNavigating, view, isOpen, selectedLocation])
+
+    const animateTo = useCallback((y: number, immediate = false) => {
+        const el = sheetRef.current
+        if (!el) return
+        currentY.current = y
+        el.style.transition = immediate
+            ? 'none'
+            : `transform ${ANIM_MS}ms ${SPRING_CONFIG}`
+        el.style.transform = `translateY(${y}px)`
+    }, [])
 
     useEffect(() => {
-        controls.start({ y: targetY })
-    }, [targetY, controls])
-
-    const setSidebarState = (active: boolean) => {
-        const params = new URLSearchParams(searchParams.toString())
-        if (active) params.set('active', 'true')
-        else params.delete('active')
-        router.push(`?${params.toString()}`, { scroll: false })
-    }
-
-    const handleDragEnd = (_: any, info: PanInfo) => {
         if (!isMobile) return
-        const { velocity, offset } = info
-        const currentY = targetY + offset.y
-        const mid = getPos(POSITIONS.middle)
-        const bot = getPos(POSITIONS.bottom)
+        animateTo(getTargetY())
+    }, [isMobile, isNavigating, view, isOpen, selectedLocation, getTargetY, animateTo])
 
-        if (velocity.y < -500 || currentY < mid) {
-            setSidebarState(true)
-        } else {
-            setSidebarState(false)
-            if (view && currentY > (mid + bot) / 2) router.push('/', { scroll: false })
+    useEffect(() => {
+        if (!isMobile) return
+        animateTo(getTargetY(), true)
+    }, [isMobile]) // eslint-disable-line react-hooks/exhaustive-deps
+
+    const getAvailableSnaps = useCallback((): number[] => {
+        if (isNavigating) return [snapY(SNAP.full), snapY(SNAP.mid), snapY(SNAP.hidden)]
+        return [snapY(SNAP.full), snapY(SNAP.mid), snapY(SNAP.peek)]
+    }, [isNavigating])
+
+    const onPointerDown = useCallback((e: React.PointerEvent) => {
+        if (!isMobile) return
+        if (scrollRef.current && scrollRef.current.scrollTop > 0) return
+
+        const el = sheetRef.current
+        if (!el) return
+
+        const matrix = new DOMMatrix(getComputedStyle(el).transform)
+        const translateY = matrix.m42
+
+        dragState.current = {
+            active: true,
+            startY: e.clientY,
+            startTranslate: translateY,
+            lastY: e.clientY,
+            lastT: Date.now(),
+            vel: 0,
         }
+        currentY.current = translateY
+
+        el.style.transition = 'none'
+        el.setPointerCapture(e.pointerId)
+    }, [isMobile])
+
+    const onPointerMove = useCallback((e: React.PointerEvent) => {
+        if (!dragState.current.active) return
+
+        const el = sheetRef.current
+        if (!el) return
+
+        const now = Date.now()
+        const dt = now - dragState.current.lastT || 1
+        const dy = e.clientY - dragState.current.lastY
+        dragState.current.vel = dy / dt
+        dragState.current.lastY = e.clientY
+        dragState.current.lastT = now
+
+        const raw = dragState.current.startTranslate + (e.clientY - dragState.current.startY)
+
+        const minY = snapY(SNAP.full)
+        const maxY = snapY(SNAP.peek)
+
+        let y = raw
+        if (raw < minY) y = minY - (minY - raw) * 0.3
+        if (raw > maxY) y = maxY + (raw - maxY) * 0.3
+
+        currentY.current = y
+        el.style.transform = `translateY(${y}px)`
+    }, [isNavigating])
+
+    const onPointerUp = useCallback((e: React.PointerEvent) => {
+        if (!dragState.current.active) return
+        dragState.current.active = false
+
+        const vel = dragState.current.vel  // px/ms
+        const snaps = getAvailableSnaps()
+        const projected = currentY.current + vel * 80   // momentum projection
+
+        let target = nearestSnap(projected, snaps)
+
+        if (vel > 0.8) target = snaps[snaps.length - 1]
+        if (vel < -0.8) target = snaps[0]
+
+        animateTo(target)
+
+        // sync URL state
+        const params = new URLSearchParams(searchParams.toString())
+        if (target === snapY(SNAP.full)) {
+            params.set('active', 'true')
+        } else if (target === snapY(SNAP.peek)) {
+            params.delete('active')
+            params.delete('view')
+        } else if (target === snapY(SNAP.mid)) {
+            params.delete('active')
+        }
+        router.replace(`?${params.toString()}`, { scroll: false })
+    }, [getAvailableSnaps, animateTo, searchParams, router])
+
+    if (!isMobile) {
+        return (
+            <aside className="relative w-96 z-30 p-4 pointer-events-none h-full">
+
+                <div className={cn(
+                    "h-full w-full relative",
+                    "bg-card/95 backdrop-blur-xl border border-border shadow-2xl rounded-3xl pointer-events-auto",
+                    "flex flex-col gap-6 overflow-hidden pb-10 pt-5 px-5"
+                )}>
+                    <SearchInput />
+                    <div className="flex-1 overflow-y-auto hide-scrollbar">
+                        {view ? (
+                            <>
+                                {view === 'favorites' && <Favorite sliceFavorsTo={8} />}
+                                {view === 'nearby_places' && <NearbyPlacesView />}
+                                {view === 'recent' && <Recent sliceRecentTo={8} />}
+                            </>
+                        ) : (
+                            <Results />
+                        )}
+                    </div>
+                </div>
+            </aside >
+        )
     }
 
-    const handleScrollCapture = (e: React.UIEvent<HTMLDivElement>) => {
-        if (!isMobile || !scrollRef.current) return
-        const { scrollTop } = scrollRef.current
-        if (scrollTop <= 0 && isOpen) {
-            // Logic for pulling down when scroll is at top can be added here via dragControls
-        }
-    }
-
-    useOutsideClick(sidebarRef, () => {
-        if (isMobile && (selectedLocation || isOpen || view)) {
-            router.push('/', { scroll: false })
-        }
-    })
-
+    // mobile
     return (
-        <aside className="absolute inset-x-0 bottom-0 md:relative md:inset-auto md:w-96 z-30 md:p-4 pointer-events-none h-full">
-            <motion.div
-                ref={sidebarRef}
-                drag={isMobile ? 'y' : false}
-                dragControls={dragControls}
-                dragListener={false}
-                dragConstraints={{
-                    top: getPos(POSITIONS.top),
-                    bottom: getPos(POSITIONS.bottom)
-                }}
-                dragElastic={0.1}
-                dragMomentum={false}
-                animate={controls}
-                initial={{ y: isMobile ? getPos(POSITIONS.bottom) : 0 }}
-                onDragEnd={handleDragEnd}
-                transition={{ type: 'spring', damping: 30, stiffness: 300, mass: 0.8 }}
+        <aside className="absolute inset-x-0 bottom-0 z-30 pointer-events-none h-full">
+            <div
+                ref={sheetRef}
+                onPointerDown={onPointerDown}
+                onPointerMove={onPointerMove}
+                onPointerUp={onPointerUp}
+                onPointerCancel={onPointerUp}
+                style={{ touchAction: 'none' }}
                 className={cn(
-                    "h-[100vh] pt-2 md:h-full w-full absolute top-0 left-0 md:relative",
-                    "bg-card/95 md:backdrop-blur-xl md:border border-border shadow-2xl rounded-t-[24px] md:rounded-3xl pointer-events-auto",
-                    "flex flex-col md:gap-6 space-y-3 md:overflow-hidden pb-10"
+                    "absolute top-0 left-0 w-full h-[100dvh] pointer-events-auto",
+                    "bg-card/97 backdrop-blur-xl shadow-2xl rounded-t-[24px]",
+                    "flex flex-col will-change-transform"
                 )}
             >
+
                 {isNavigating && (
-                    <div className='absolute md:hidden flex -translate-y-15 p-3 bg-card rounded-full left-4'>
-                        <ExpandBtn icon={<ScanEye className='size-5' />} />
+                    <div className="-translate-y-12 translate-x-2 absolute pointer-events-auto z-40">
+                        <div className="p-3 bg-card rounded-full shadow-lg border border-border">
+                            <ExpandBtn icon={<ScanEye className="size-5" />} />
+                        </div>
                     </div>
                 )}
 
-                <div
-                    onPointerDown={(e) => isMobile && dragControls.start(e)}
-                    className="w-full flex justify-center items-center md:hidden shrink-0 cursor-grab active:cursor-grabbing touch-none select-none py-2"
-                >
-                    <div className="w-12 h-1.5 rounded-full bg-muted-foreground/30" />
+                {/* ── Handle ── */}
+                <div className="w-full flex justify-center items-center shrink-0 pt-3 pb-1 cursor-grab active:cursor-grabbing select-none mb-3">
+                    <div className="w-10 h-1 rounded-full bg-muted-foreground/25 transition-all duration-200" />
                 </div>
 
+                {/* ── Scrollable content ── */}
                 <div
                     ref={scrollRef}
-                    onScroll={handleScrollCapture}
-                    className="flex-1 flex flex-col overflow-y-auto hide-scrollbar overscroll-contain px-4 md:px-5"
+                    className="flex-1 overflow-y-auto hide-scrollbar overscroll-contain px-4 pb-10"
+                    style={{ touchAction: 'pan-y' }}
                 >
                     {view ? (
                         <div className="flex-1">
@@ -3133,113 +3338,18 @@ function Sidebar() {
                     ) : (
                         <div className="flex flex-col h-full">
                             {!selectedLocation && <SearchInput />}
-                            <div className="md:mt-4">
+                            <div className="mt-3">
                                 <Results />
                             </div>
                         </div>
                     )}
                 </div>
-            </motion.div>
+            </div>
         </aside>
     )
 }
 
 export default Sidebar
-</file>
-
-<file path="src/components/map-view/Btns.tsx">
-'use client'
-import { LocateFixed, MoonIcon, SunIcon } from 'lucide-react'
-import React, { memo, useCallback, useEffect, useState } from 'react'
-import { toggleTheme } from "@/store/theme/themeSlice";
-import { useDispatch, useSelector } from "react-redux";
-import { RootState } from '@/app/store';
-import { useMap } from 'react-map-gl/maplibre';
-import { useRouter } from 'next/navigation';
-import { useRecentSearches } from '@/hooks/useAddToRecent';
-
-const Btns = memo(function Btns() {
-    const mode = useSelector((m: RootState) => m.theme.mode);
-    const [mounted, setMounted] = useState(false);
-
-    const dispatch = useDispatch();
-    const { "main-map": map } = useMap();
-
-    useEffect(() => {
-        setMounted(true);
-    }, []);
-
-    const router = useRouter()
-    const { addToRecent } = useRecentSearches()
-    const COORDS_EXPIRY_MS = 24 * 60 * 60 * 1000
-
-    const handleGoToUserLocation = useCallback(() => {
-        if (!navigator.geolocation) return;
-
-        const saved = localStorage.getItem('userCoords');
-        if (saved) {
-            try {
-                const parsed = JSON.parse(saved);
-                const isExpired = Date.now() - parsed.timestamp > COORDS_EXPIRY_MS;
-
-                if (!isExpired) {
-                    router.push(`?lat=${parsed.lat}&lng=${parsed.lng}&m=true`);
-                    addToRecent({ lat: parsed.lat, lng: parsed.lng });
-                    return;
-                }
-            } catch (e) {
-                localStorage.removeItem('userCoords');
-            }
-        }
-
-        navigator.geolocation.getCurrentPosition(
-            (p) => {
-                const coords = {
-                    lat: p.coords.latitude,
-                    lng: p.coords.longitude,
-                    timestamp: Date.now()
-                };
-                localStorage.setItem('userCoords', JSON.stringify(coords));
-                router.push(`?lat=${coords.lat}&lng=${coords.lng}&m=true`);
-                addToRecent({ lat: coords.lat, lng: coords.lng });
-            },
-            (error) => {
-                const msg = error.code === 1 ? 'Location access denied' : 'Could not get location';
-                console.error(msg);
-            }
-        );
-    }, [map, router, addToRecent]);
-
-    return (
-        <div className="bg-card/98 absolute right-1 top-1 md:right-8 md:top-8 z-20 flex flex-col gap-0 pointer-events-auto rounded-[8px] overflow-hidden">
-            {/* theme-btn */}
-            <button
-                type='button'
-                onClick={() => dispatch(toggleTheme())}
-                className="size-12 md:size-14 border-b border-border flex items-center justify-center active:scale-90 transition-all"
-            >
-                {!mounted ? (
-                    <div className="size-6 animate-pulse bg-muted rounded-full" />
-                ) : mode === 'dark' ? (
-                    <SunIcon className="size-6 text-amber-400" />
-                ) : (
-                    <MoonIcon className="size-6 text-primary" />
-                )}
-            </button>
-
-            {/* location-btn */}
-            <button
-                type='button'
-                onClick={handleGoToUserLocation}
-                className="size-12 md:size-14 flex items-center justify-center hover:bg-secondary active:scale-90 transition-all text-foreground/90"
-            >
-                <LocateFixed />
-            </button>
-        </div>
-    )
-})
-
-export default Btns;
 </file>
 
 </files>

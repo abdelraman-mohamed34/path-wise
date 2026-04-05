@@ -11,9 +11,18 @@ interface FetchTripParams {
     eCoords: Coords; // End Coords
 }
 
-export const fetchTripPoints = createAsyncThunk(
+interface TripResult {
+    geometry: {
+        type: "LineString";
+        coordinates: number[][];
+    };
+    distance: number;
+    duration: number;
+}
+
+export const fetchTripPoints = createAsyncThunk<TripResult, FetchTripParams>(
     'trip/fetchTripPoints',
-    async ({ sCoords, eCoords }: { sCoords: any; eCoords: any }, { rejectWithValue, signal }) => {
+    async ({ sCoords, eCoords }, { rejectWithValue, signal }) => {
         try {
             const response = await axios.get(
                 `https://router.project-osrm.org/route/v1/driving/${sCoords.lng},${sCoords.lat};${eCoords.lng},${eCoords.lat}?overview=full&geometries=geojson`,
@@ -27,10 +36,13 @@ export const fetchTripPoints = createAsyncThunk(
                 return rejectWithValue('Route not found');
             }
 
-            return response.data.routes[0].geometry.coordinates.map((coord: any) => ({
-                lat: coord[1],
-                lng: coord[0],
-            }));
+            const route = response.data.routes[0];
+
+            return {
+                geometry: route.geometry,   // { type: "LineString", coordinates: number[][] }
+                distance: route.distance,   // meters
+                duration: route.duration,   // seconds
+            };
         } catch (error: any) {
             if (axios.isCancel(error)) {
                 console.log('Request cancelled');
