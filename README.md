@@ -4,6 +4,12 @@
 
 ---
 
+## 🌐 Live Demo
+<a href='https://path-wise-one.vercel.app/' target='_blank'>search-engine/</a>
+
+
+---
+
 ## 🚀 Tech Stack
 
 Selected for scalability, performance, and modern developer experience:
@@ -37,12 +43,3 @@ Selected for scalability, performance, and modern developer experience:
 ### ⚡ Performance Engineering
 * **Declarative Mapping:** Map layers and sources are fully reactive, driven by the centralized Redux state.
 * **Optimized Rendering:** Heavy use of `React.memo`, `useCallback`, and `useMemo` to maintain 60FPS performance during map interactions and sidebar transitions.
-
----
-
-## 🛠️ Installation & Setup
-
-1. **Clone the repository:**
-   ```bash
-   git clone [https://github.com/your-username/geo-vision.git](https://github.com/your-username/geo-vision.git)
-   cd geo-vision
