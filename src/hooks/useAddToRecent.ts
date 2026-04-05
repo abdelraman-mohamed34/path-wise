@@ -26,12 +26,10 @@ export const useRecentSearches = () => {
     const addToRecent = async (newRecent: Coords) => {
         try {
             const result = await disPatch(getLocationDetails(newRecent)).unwrap();
-
             const entryWithDetails = {
                 ...newRecent,
                 name: result?.name || "Unknown Location"
             };
-
             setRecent((prev) => {
                 const filtered = prev.filter(
                     (item) => !(item.lat === newRecent.lat && item.lng === newRecent.lng)
@@ -40,7 +38,8 @@ export const useRecentSearches = () => {
                 localStorage.setItem("recent", JSON.stringify(updated));
                 return updated;
             });
-        } catch (error) {
+        } catch (error: any) {
+            if (error?.name === 'ConditionError') return;
             console.error("Failed to fetch location details", error);
         }
     };

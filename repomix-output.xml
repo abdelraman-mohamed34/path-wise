@@ -434,7 +434,9 @@ export default TripInfo
 import { AnimatePresence } from 'framer-motion'
 import { MoreHorizontal } from 'lucide-react'
 import React, { useCallback, useState } from 'react'
-import Options from './Options'
+import dynamic from 'next/dynamic'
+
+const Options = dynamic(() => import('./Options'), { ssr: false })
 
 type Props = {
     coords: { lat: number; lng: number }
@@ -632,49 +634,6 @@ export const { toggleLang } = langSlice.actions
 export default langSlice.reducer
 </file>
 
-<file path="src/store/theme/themeSlice.ts">
-import { createSlice, PayloadAction } from '@reduxjs/toolkit'
-
-type ThemeState = {
-    mode: 'dark' | 'light'
-}
-
-const getInitialTheme = (): 'dark' | 'light' => {
-    if (typeof window !== "undefined") {
-        const saved = localStorage.getItem("theme") as 'dark' | 'light';
-        if (saved) return saved;
-        return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-    }
-    return "dark";
-}
-
-const initialState: ThemeState = {
-    mode: getInitialTheme(),
-}
-
-const themeSlice = createSlice({
-    name: 'theme',
-    initialState,
-    reducers: {
-        toggleTheme: (state) => {
-            state.mode = state.mode === 'light' ? 'dark' : 'light';
-            if (typeof window !== "undefined") {
-                localStorage.setItem("theme", state.mode);
-            }
-        },
-        setTheme: (state, action: PayloadAction<'dark' | 'light'>) => {
-            state.mode = action.payload;
-            if (typeof window !== "undefined") {
-                localStorage.setItem("theme", state.mode);
-            }
-        }
-    },
-})
-
-export const { toggleTheme, setTheme } = themeSlice.actions
-export default themeSlice.reducer
-</file>
-
 <file path="src/store/trip/api/fetchTripPoints.ts">
 import { createAsyncThunk } from "@reduxjs/toolkit";
 import axios from "axios";
@@ -690,22 +649,31 @@ interface FetchTripParams {
 }
 
 export const fetchTripPoints = createAsyncThunk(
-    'route/fetchTripPoints',
-    async ({ sCoords, eCoords }: FetchTripParams, { rejectWithValue }) => {
+    'trip/fetchTripPoints',
+    async ({ sCoords, eCoords }: { sCoords: any; eCoords: any }, { rejectWithValue, signal }) => {
         try {
-            const map_key = process.env.NEXT_PUBLIC_MAP_KEY;
+            const response = await axios.get(
+                `https://router.project-osrm.org/route/v1/driving/${sCoords.lng},${sCoords.lat};${eCoords.lng},${eCoords.lat}?overview=full&geometries=geojson`,
+                {
+                    signal,
+                    timeout: 10000
+                }
+            );
 
-            if (!sCoords.lat || !eCoords.lat) {
-                return rejectWithValue("Missing coordinates");
+            if (response.data.code !== 'Ok') {
+                return rejectWithValue('Route not found');
             }
 
-            const url = `https://router.project-osrm.org/route/v1/driving/${sCoords.lng},${sCoords.lat};${eCoords.lng},${eCoords.lat}?overview=full&geometries=geojson`;
-            const response = await axios.get(url);
-            const data = response.data;
-            return data.routes[0];
-
+            return response.data.routes[0].geometry.coordinates.map((coord: any) => ({
+                lat: coord[1],
+                lng: coord[0],
+            }));
         } catch (error: any) {
-            return rejectWithValue(error.response?.data?.message || error.message);
+            if (axios.isCancel(error)) {
+                console.log('Request cancelled');
+                return rejectWithValue('cancelled');
+            }
+            return rejectWithValue(error.message || 'Failed to fetch route');
         }
     }
 );
@@ -722,6 +690,7 @@ type TripState = {
     duration: number | null;
     status: 'idle' | 'loading' | 'error' | 'success';
     userLocation: { lat: number; lng: number } | null;
+    isTrip: boolean
 }
 
 const initialState: TripState = {
@@ -730,6 +699,7 @@ const initialState: TripState = {
     duration: null,
     status: 'idle',
     userLocation: null,
+    isTrip: false,
 };
 
 export const tripSlice = createSlice({
@@ -742,8 +712,9 @@ export const tripSlice = createSlice({
             state.duration = null;
             state.status = 'idle';
             state.userLocation = null;
+            state.isTrip = false;
         },
-        setUserLocation: (state, action: PayloadAction<{ lat: number; lng: number } | null>) => {
+        setUserLocationForTrip: (state, action: PayloadAction<{ lat: number; lng: number } | null>) => {
             state.userLocation = action.payload;
         }
     },
@@ -752,21 +723,24 @@ export const tripSlice = createSlice({
             .addCase(fetchTripPoints.pending, (state) => {
                 state.status = 'loading';
                 state.coordinates = [];
+                state.isTrip = false;
             })
             .addCase(fetchTripPoints.fulfilled, (state, action: any) => {
                 state.status = 'success';
                 state.coordinates = action.payload.geometry.coordinates;
                 state.distance = action.payload.distance;
                 state.duration = action.payload.duration;
+                state.isTrip = true;
             })
             .addCase(fetchTripPoints.rejected, (state) => {
                 state.status = 'error';
                 state.coordinates = [];
+                state.isTrip = false;
             })
     }
 });
 
-export const { clearTrip, setUserLocation } = tripSlice.actions;
+export const { clearTrip, setUserLocationForTrip } = tripSlice.actions;
 export default tripSlice.reducer;
 </file>
 
@@ -921,36 +895,6 @@ function Favorite({ sliceFavorsTo }: { sliceFavorsTo: number }) {
 export default Favorite
 </file>
 
-<file path="src/components/map-view/side_bar/_components/results/LocationCard.tsx">
-import Window from '@/reuseable_components/Window';
-import { ChevronLeft, MapPin } from 'lucide-react';
-
-interface LocationCardProps {
-    item: any;
-    onClick: (coords: { lat: number; lng: number }) => void;
-}
-
-export const LocationCard = ({ item, onClick }: LocationCardProps) => (
-    <Window
-        onClick={() => onClick(item.coords)}
-        className="cursor-pointer w-full group relative flex items-center gap-4 p-4 bg-card/40 hover:border border border-transparent backdrop-blur-sm rounded-md hover:border-primary/40 hover:bg-secondary/40 transition-all duration-300 text-left shadow-sm overflow-hidden"
-    >
-        <div className="flex-shrink-0 flex items-center justify-center size-10 rounded-full bg-red-500 text-white transition-all duration-300">
-            <MapPin className="size-5" />
-        </div>
-        <div className="flex-1 min-w-0 z-10">
-            <h3 className="font-bold text-sm text-foreground group-hover:text-primary transition-colors truncate">
-                {item.name}
-            </h3>
-            <p className="text-[10px] font-mono text-muted-foreground/80 mt-0.5">
-                {item.coords.lat.toFixed(4)}° N, {item.coords.lng.toFixed(4)}° E
-            </p>
-        </div>
-        <ChevronLeft className="size-4 text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all" />
-    </Window>
-);
-</file>
-
 <file path="src/components/views/NearbyPlacesView.tsx">
 'use client'
 
@@ -1025,18 +969,16 @@ export const useFavorites = () => {
                 ...newFavors,
                 name: result?.name || "Unknown Location"
             };
-
             setFavors((prevFavors) => {
                 const filtered = prevFavors.filter(
                     (item) => !(item.lat === newFavors.lat && item.lng === newFavors.lng)
                 );
                 const updated = [entryWithDetails, ...filtered].slice(0, 8);
                 localStorage.setItem("favorites", JSON.stringify(updated));
-
                 return updated;
             });
-
-        } catch (error) {
+        } catch (error: any) {
+            if (error?.name === 'ConditionError') return;
             console.error("Failed to add to favorites", error);
         }
     };
@@ -1074,12 +1016,10 @@ export const useRecentSearches = () => {
     const addToRecent = async (newRecent: Coords) => {
         try {
             const result = await disPatch(getLocationDetails(newRecent)).unwrap();
-
             const entryWithDetails = {
                 ...newRecent,
                 name: result?.name || "Unknown Location"
             };
-
             setRecent((prev) => {
                 const filtered = prev.filter(
                     (item) => !(item.lat === newRecent.lat && item.lng === newRecent.lng)
@@ -1088,7 +1028,8 @@ export const useRecentSearches = () => {
                 localStorage.setItem("recent", JSON.stringify(updated));
                 return updated;
             });
-        } catch (error) {
+        } catch (error: any) {
+            if (error?.name === 'ConditionError') return;
             console.error("Failed to fetch location details", error);
         }
     };
@@ -1429,10 +1370,59 @@ export const {
 export default routeSlice.reducer;
 </file>
 
+<file path="src/store/theme/themeSlice.ts">
+import { createSlice, PayloadAction } from '@reduxjs/toolkit'
+
+type ThemeState = {
+    mode: 'dark' | 'light'
+}
+
+const getInitialTheme = (): 'dark' | 'light' => {
+    if (typeof window !== "undefined") {
+        const saved = localStorage.getItem("theme") as 'dark' | 'light';
+        if (saved) return saved;
+        return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    }
+    return "dark";
+}
+
+const initialState: ThemeState = {
+    mode: getInitialTheme(),
+}
+
+const themeSlice = createSlice({
+    name: 'theme',
+    initialState,
+    reducers: {
+        toggleTheme: (state) => {
+            state.mode = state.mode === 'light' ? 'dark' : 'light';
+            if (typeof window !== "undefined") {
+                localStorage.setItem("theme", state.mode);
+            }
+        },
+        setTheme: (state, action: PayloadAction<'dark' | 'light'>) => {
+            state.mode = action.payload;
+            if (typeof window !== "undefined") {
+                localStorage.setItem("theme", state.mode);
+            }
+        }
+    },
+})
+
+export const { toggleTheme, setTheme } = themeSlice.actions
+export default themeSlice.reducer
+</file>
+
 <file path="README.md">
 # 📍 GeoVision | Next-Generation Interactive Mapping & Navigation
 
 **GeoVision** is a high-performance map application built with **Next.js 15**, designed to provide a seamless user experience for navigation and location discovery. It features a robust routing system, real-time location tracking, and a highly interactive UI optimized for both mobile and desktop users.
+
+---
+
+## 🌐 Live Demo
+<a href='https://path-wise-one.vercel.app/' target='_blank'>search-engine/</a>
+
 
 ---
 
@@ -1469,15 +1459,6 @@ Selected for scalability, performance, and modern developer experience:
 ### ⚡ Performance Engineering
 * **Declarative Mapping:** Map layers and sources are fully reactive, driven by the centralized Redux state.
 * **Optimized Rendering:** Heavy use of `React.memo`, `useCallback`, and `useMemo` to maintain 60FPS performance during map interactions and sidebar transitions.
-
----
-
-## 🛠️ Installation & Setup
-
-1. **Clone the repository:**
-   ```bash
-   git clone [https://github.com/your-username/geo-vision.git](https://github.com/your-username/geo-vision.git)
-   cd geo-vision
 </file>
 
 <file path="src/components/map-view/main_map/MapComponent.tsx">
@@ -1490,6 +1471,7 @@ import { getLocationDetails } from "@/store/details/api/fetchLocationDetails";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useRecentSearches } from "@/hooks/useAddToRecent";
 import { clearTrip } from "@/store/trip/tripSlice";
+import "maplibre-gl/dist/maplibre-gl.css";
 
 interface MapComponentProps {
     mapStyle: string;
@@ -1744,6 +1726,39 @@ function Recent({ sliceRecentTo }: { sliceRecentTo: number }) {
 export default Recent
 </file>
 
+<file path="src/components/map-view/side_bar/_components/results/LocationCard.tsx">
+import Window from '@/reuseable_components/Window';
+import { ChevronLeft, MapPin } from 'lucide-react';
+
+interface LocationCardProps {
+    item: any;
+    onClick: (coords: { lat: number; lng: number }) => void;
+}
+
+export default function LocationCard({ item, onClick }: LocationCardProps) {
+
+    return (
+        <Window
+            onClick={() => onClick(item.coords)}
+            className="cursor-pointer w-full group relative flex items-center gap-4 p-4 bg-card/40 hover:border border border-transparent backdrop-blur-sm rounded-md hover:border-primary/40 hover:bg-secondary/40 transition-all duration-300 text-left shadow-sm overflow-hidden"
+        >
+            <div className="flex-shrink-0 flex items-center justify-center size-10 rounded-full bg-red-500 text-white transition-all duration-300">
+                <MapPin className="size-5" />
+            </div>
+            <div className="flex-1 min-w-0 z-10">
+                <h3 className="font-bold text-sm text-foreground group-hover:text-primary transition-colors truncate">
+                    {item.name}
+                </h3>
+                <p className="text-[10px] font-mono text-muted-foreground/80 mt-0.5">
+                    {item.coords.lat.toFixed(4)}° N, {item.coords.lng.toFixed(4)}° E
+                </p>
+            </div>
+            <ChevronLeft className="size-4 text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all" />
+        </Window>
+    )
+}
+</file>
+
 <file path="src/components/map-view/side_bar/_components/results/quick_access/Options.tsx">
 'use client'
 import React from 'react'
@@ -1960,282 +1975,6 @@ export const getLocationDetails = createAsyncThunk<
 );
 </file>
 
-<file path="package.json">
-{
-  "name": "path-wise",
-  "version": "0.1.0",
-  "private": true,
-  "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "eslint"
-  },
-  "dependencies": {
-    "@reduxjs/toolkit": "^2.11.2",
-    "axios": "^1.14.0",
-    "clsx": "^2.1.1",
-    "framer-motion": "^12.38.0",
-    "lucide-react": "^1.7.0",
-    "mapbox-gl": "^3.20.0",
-    "maplibre-gl": "^5.21.1",
-    "next": "16.2.2",
-    "react": "19.2.4",
-    "react-dom": "19.2.4",
-    "react-map-gl": "^8.1.0",
-    "react-redux": "^9.2.0",
-    "shadcn": "^4.1.2",
-    "sonner": "^2.0.7",
-    "tailwind-merge": "^3.5.0",
-    "tw-animate-css": "^1.4.0"
-  },
-  "devDependencies": {
-    "@tailwindcss/postcss": "^4",
-    "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "eslint": "^9",
-    "eslint-config-next": "16.2.2",
-    "postcss": "^8.5.8",
-    "tailwindcss": "^4",
-    "typescript": "^5"
-  }
-}
-</file>
-
-<file path="src/app/globals.css">
-@import "tailwindcss";
-@import "tw-animate-css";
-@import "shadcn/tailwind.css";
-@custom-variant dark (&:is(.dark *));
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-sans);
-  --font-mono: var(--font-geist-mono);
-  --font-heading: var(--font-sans);
-  --color-sidebar-ring: var(--sidebar-ring);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar: var(--sidebar);
-  --color-chart-5: var(--chart-5);
-  --color-chart-4: var(--chart-4);
-  --color-chart-3: var(--chart-3);
-  --color-chart-2: var(--chart-2);
-  --color-chart-1: var(--chart-1);
-  --color-ring: var(--ring);
-  --color-input: var(--input);
-  --color-border: var(--border);
-  --color-destructive: var(--destructive);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-accent: var(--accent);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-muted: var(--muted);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-secondary: var(--secondary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-primary: var(--primary);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-popover: var(--popover);
-  --color-card-foreground: var(--card-foreground);
-  --color-card: var(--card);
-  --color-window: var(--window);
-  --radius-sm: calc(var(--radius) * 0.6);
-  --radius-md: calc(var(--radius) * 0.8);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) * 1.4);
-  --radius-2xl: calc(var(--radius) * 1.8);
-  --radius-3xl: calc(var(--radius) * 2.2);
-  --radius-4xl: calc(var(--radius) * 2.6);
-}
-
-:root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: #F7F7F6;
-  --window: oklch(100% 0.00011 271.152);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: #0C79FE;
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: #E9E9E9;
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: #868782;
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
-}
-
-.dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --window: oklch(23.929% 0.00003 271.152);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
-}
-
-.hide-scrollbar::-webkit-scrollbar {
-  display: none !important;
-}
-
-.hide-scrollbar {
-  -ms-overflow-style: none !important;
-  scrollbar-width: none !important;
-}
-
-
-button {
-  cursor: pointer;
-}
-
-@layer base {
-  * {
-    @apply border-border outline-ring/50;
-  }
-
-  body {
-    @apply bg-background text-foreground;
-  }
-
-  html {
-    @apply font-sans;
-  }
-}
-</file>
-
-<file path="src/app/layout.tsx">
-import type { Metadata } from "next";
-import { Noto_Sans_Arabic, Geist_Mono } from "next/font/google"; // استبدال Geist بالخط العربي
-import "./globals.css";
-import Wrapper from "./Wrapper";
-import { Toaster } from "sonner";
-
-const arabicFont = Noto_Sans_Arabic({
-  variable: "--font-arabic",
-  subsets: ["arabic", "latin"],
-  display: "swap",
-  weight: ["400", "500", "700"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-  display: "swap",
-});
-
-export const metadata: Metadata = {
-  title: "PathWise - Smart Route Optimizer",
-  description: "Optimizing your journeys with high performance",
-};
-
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
-  return (
-    <html
-      lang="ar"
-      dir="rtl"
-      className={`${arabicFont.variable} ${geistMono.variable} h-full antialiased`}
-      suppressHydrationWarning
-    >
-      <head>
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              (function() {
-                try {
-                  var mode = localStorage.getItem('theme');
-                  var supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
-                  if (mode === 'dark' || (!mode && supportDarkMode)) {
-                    document.documentElement.classList.add('dark');
-                  } else {
-                    document.documentElement.classList.remove('dark');
-                  }
-                } catch (e) {}
-              })();
-            `,
-          }}
-        />
-      </head>
-
-      <body className={`${arabicFont.className} min-h-full flex flex-col bg-background text-foreground transition-colors duration-300`}>
-        <Wrapper>
-          {children}
-          <Toaster
-            position="top-center"
-            richColors
-            toastOptions={{
-              className: "border border-border/50 backdrop-blur-md bg-window/80 text-foreground rounded-xl shadow-2xl",
-              descriptionClassName: "text-muted-foreground text-[10px]",
-              style: {
-                padding: '15px 16px',
-                backgroundColor: 'var(--card)',
-                color: 'var(--card-foreground)',
-                border: '1px solid var(--border)',
-                borderRadius: '12px',
-              },
-            }}
-          />
-        </Wrapper>
-      </body>
-    </html >
-  );
-}
-</file>
-
 <file path="src/app/page.tsx">
 'use client'
 import { useDispatch, useSelector } from "react-redux";
@@ -2307,15 +2046,17 @@ export default function Home() {
 "use client";
 import { useMemo, Suspense } from "react";
 import { MapProvider } from "react-map-gl/maplibre";
-import "maplibre-gl/dist/maplibre-gl.css";
 import { useSelector } from "react-redux";
 import { RootState } from "@/app/store";
 import maplibregl from 'maplibre-gl';
-import MapComponent from "./MapComponent";
+
 import Sidebar from "../side_bar/Sidebar";
 import Btns from "../Btns";
+import dynamic from "next/dynamic";
 
-import TripInfo from "./TripInfo";
+const TripInfo = dynamic(() => import("./TripInfo"), { ssr: false })
+const MapComponent = dynamic(() => import("./MapComponent"), { ssr: false })
+
 
 if (typeof window !== "undefined" && maplibregl.getRTLTextPluginStatus() === 'unavailable') {
     maplibregl.setRTLTextPlugin('https://unpkg.com/@mapbox/mapbox-gl-rtl-text@0.2.3/mapbox-gl-rtl-text.min.js', true);
@@ -2339,7 +2080,7 @@ export default function Map() {
         <main className="relative h-[100dvh] w-full overflow-hidden bg-background">
             <MapProvider>
                 <div className="absolute inset-0 z-0">
-                    <Suspense>
+                    <Suspense fallback={<div className="h-full w-full bg-muted animate-pulse" />}>
                         <MapComponent mapStyle={mapStyle} />
                     </Suspense>
                 </div>
@@ -2360,174 +2101,83 @@ export default function Map() {
 }
 </file>
 
-<file path="src/components/map-view/side_bar/_components/results/DetailCard.tsx">
-'use client'
-
-import React, { useCallback, memo } from 'react'
-import Window from '@/reuseable_components/Window';
-import QuickBtns from './quick_access/QuickBtns';
-import Suggestion from '@/reuseable_components/Suggestion';
-import { motion } from 'framer-motion';
-import { MapPin, Clock, Copy, X, Star } from 'lucide-react';
-import { toast } from 'sonner';
-import TripInfo from '@/components/map-view/main_map/TripInfo';
-import { useSelector } from 'react-redux';
-import { RootState } from '@/app/store';
-
-interface DetailCardProps {
-    location: any;
-    onBack: () => void;
-}
-
-const DetailCardComponent = ({ location, onBack }: DetailCardProps) => {
-
-    const { coordinates } = useSelector((state: RootState) => state.trip);
-    const showBar = coordinates.length > 0;
-
-    const handleCopyAddress = useCallback(() => {
-        if (location?.name) {
-            navigator.clipboard.writeText(window.location.href);
-            toast.success("Link copied to clipboard");
-        }
-    }, [location?.name]);
-
-    return (
-        <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 20 }}
-            className="w-full flex flex-col h-full"
-        >
-            {/* Header Section */}
-            <div className='w-full flex justify-between items-start mb-4'>
-                <div className="flex-1 overflow-hidden pr-2">
-                    <h2 className="text-xl md:text-2xl font-black text-foreground tracking-tighter leading-tight italic uppercase truncate">
-                        {location?.name || "Selected Location"}
-                    </h2>
-                    <div className='flex items-center gap-2 mt-1'>
-                        <Star className="size-4 text-amber-500 shrink-0" />
-                        <span className="text-sm font-bold text-foreground">{location?.rating || "0.0"}</span>
-                        <span className="text-[10px] text-muted-foreground font-medium truncate">
-                            • {location?.reviewsCount || 0} reviews
-                        </span>
-                    </div>
-                </div>
-                <button
-                    type='button'
-                    onClick={onBack}
-                    className="p-2 bg-secondary/50 hover:bg-secondary hover:text-white rounded-full transition-all active:scale-90 shrink-0"
-                >
-                    <X className="size-4" />
-                </button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto hide-scrollbar space-y-5 pb-6">
-
-                {/* Quick Action Buttons */}
-                <QuickBtns coords={location?.coords} />
-
-                {showBar && (
-                    <Window className='flex justify-center items-center md:hidden flex'>
-                        <TripInfo className='md:hidden flex' />
-                    </Window>
-                )}
-
-                {/* Location Details Window */}
-                <Window title='Location Details' className='p-4 space-y-5'>
-                    <div className="flex items-start gap-4 group/item">
-                        <div className="p-2.5 bg-red-600 rounded-full shrink-0">
-                            <MapPin className="size-5 text-white" />
-                        </div>
-                        <div className="flex-1 overflow-hidden">
-                            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.15em] mb-1">Address</p>
-                            <p className="text-sm font-semibold text-foreground/90 leading-snug line-clamp-2">
-                                {location?.name || "Address not available"}
-                            </p>
-                        </div>
-                        <button
-                            type='button'
-                            onClick={handleCopyAddress}
-                            className="opacity-0 group-hover/item:opacity-100 p-2 hover:bg-secondary rounded-lg transition-all shrink-0"
-                        >
-                            <Copy className="size-4 text-muted-foreground" />
-                        </button>
-                    </div>
-
-                    <div className="flex items-start gap-4">
-                        <div className="p-2.5 bg-blue-600 rounded-full shrink-0">
-                            <Clock className="size-5 text-white" />
-                        </div>
-                        <div className="flex-1">
-                            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.15em] mb-1">Business Hours</p>
-                            <div className="flex items-center flex-wrap gap-x-2">
-                                <span className={`text-[11px] font-black px-2 py-0.5 rounded-full ${location?.isOpen ? 'bg-emerald-500/10 text-emerald-600' : 'bg-red-500/10 text-red-600'}`}>
-                                    {location?.isOpen ? 'OPEN' : 'CLOSED'}
-                                </span>
-                                <span className="text-xs text-muted-foreground font-medium italic">
-                                    • {location?.hours || "Check schedule"}
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-                </Window>
-
-                {/* Suggestions Section */}
-                <div className="pt-2">
-                    <Suggestion sliceTo={3} />
-                </div>
-            </div>
-        </motion.div>
-    );
-}
-
-export const DetailCard = memo(DetailCardComponent);
-</file>
-
 <file path="src/components/map-view/side_bar/_components/results/quick_access/QuickBtns.tsx">
 'use client'
-import { CarFront, MoreHorizontal } from 'lucide-react'
-import React, { useState, useCallback, useEffect, useRef, memo } from 'react'
-import { useDispatch } from 'react-redux'
-import { AppDispatch } from '@/app/store'
+import { CarFront } from 'lucide-react'
+import React, { useCallback, useEffect, useRef, memo } from 'react'
+import { useDispatch, useSelector } from 'react-redux'
+import { AppDispatch, RootState } from '@/app/store'
 import { fetchTripPoints } from '@/store/trip/api/fetchTripPoints'
-import { clearTrip, setUserLocation } from '@/store/trip/tripSlice'
+import { clearTrip, setUserLocationForTrip } from '@/store/trip/tripSlice'
 import { toast } from 'sonner'
 import OptionsBtn from './OptionsBtn'
+import { useRouter, useSearchParams } from 'next/navigation'
 
 type Props = {
     coords: { lat: number; lng: number }
 }
 
+type RefCoords = {
+    lat: number; lng: number
+}
+
 const QuickBtns = memo(({ coords }: Props) => {
-
-    const [isTracking, setIsTracking] = useState(false) // start btn state handler
-
+    const router = useRouter()
     const watchIdRef = useRef<number | null>(null)
+    const coordsRef = useRef<RefCoords | null>(null)
+    const currentRequestRef = useRef<any>(null)
     const dispatch = useDispatch<AppDispatch>()
+    const { isTrip } = useSelector((d: RootState) => d.trip)
+    const [isOnline, setIsOnline] = React.useState(true)
+
+    const searchParams = useSearchParams()
 
     useEffect(() => {
-        return () => { if (watchIdRef.current !== null) { navigator.geolocation.clearWatch(watchIdRef.current) } }
+        setIsOnline(window.navigator.onLine)
+        const updateStatus = () => setIsOnline(window.navigator.onLine)
+        window.addEventListener('online', updateStatus)
+        window.addEventListener('offline', updateStatus)
+        return () => {
+            window.removeEventListener('online', updateStatus)
+            window.removeEventListener('offline', updateStatus)
+        }
     }, [])
 
-    // functions
+    useEffect(() => {
+        return () => {
+            if (watchIdRef.current !== null) {
+                navigator.geolocation.clearWatch(watchIdRef.current)
+            }
+            if (currentRequestRef.current) {
+                currentRequestRef.current.abort()
+            }
+        }
+    }, [])
+
     const stopTracking = useCallback(() => {
         if (watchIdRef.current !== null) {
             navigator.geolocation.clearWatch(watchIdRef.current)
             watchIdRef.current = null
         }
-        setIsTracking(false)
+        if (currentRequestRef.current) {
+            currentRequestRef.current.abort()
+        }
+        coordsRef.current = null
         dispatch(clearTrip())
-        dispatch(setUserLocation(null))
+        dispatch(setUserLocationForTrip(null))
     }, [dispatch])
 
     const handleStartTrip = useCallback(() => {
-        if (isTracking) {
+        if (!isOnline) {
+            toast.error("Connection error! Please check your internet.")
+            return
+        }
+        if (isTrip) {
             stopTracking()
             return
         }
-
         if (!navigator.geolocation) {
-            toast.error("GPS not supported")
+            toast.error("Location access not supported by your browser")
             return
         }
 
@@ -2536,41 +2186,69 @@ const QuickBtns = memo(({ coords }: Props) => {
         watchIdRef.current = navigator.geolocation.watchPosition(
             async (p) => {
                 toast.dismiss(toastId)
-                setIsTracking(true)
-                dispatch(setUserLocation({
-                    lat: p.coords.latitude,
-                    lng: p.coords.longitude
-                }))
+                const currentLat = p.coords.latitude
+                const currentLng = p.coords.longitude
+
+                dispatch(setUserLocationForTrip({ lat: currentLat, lng: currentLng }))
+
+                if (coordsRef.current) {
+                    const latDiff = Math.abs(coordsRef.current.lat - currentLat)
+                    const lngDiff = Math.abs(coordsRef.current.lng - currentLng)
+                    if (latDiff < 0.0003 && lngDiff < 0.0003) return
+                }
+
                 try {
-                    await dispatch(fetchTripPoints({
-                        sCoords: { lat: p.coords.latitude, lng: p.coords.longitude },
+                    if (currentRequestRef.current) {
+                        currentRequestRef.current.abort()
+                    }
+
+                    const request = dispatch(fetchTripPoints({
+                        sCoords: { lat: currentLat, lng: currentLng },
                         eCoords: { lat: coords.lat, lng: coords.lng }
-                    })).unwrap()
-                } catch {
-                    toast.error("Could not update route")
+                    }))
+
+                    currentRequestRef.current = request
+
+                    await request.unwrap()
+
+                    coordsRef.current = { lat: currentLat, lng: currentLng }
+
+                    const params = new URLSearchParams(searchParams.toString())
+                    if (params.has('active')) {
+                        params.delete('active')
+                        router.push(`?${params.toString()}`, { scroll: false })
+                    }
+
+                } catch (err: any) {
+                    if (err !== 'cancelled' && err?.name !== 'AbortError') {
+                        toast.error("Could not update route")
+                    }
                 }
             },
             () => {
                 toast.dismiss(toastId)
                 toast.error("Enable GPS to start navigation")
             },
-            { enableHighAccuracy: true, maximumAge: 3000 }
+            { enableHighAccuracy: true, maximumAge: 2000, timeout: 5000 }
         )
-    }, [isTracking, coords, dispatch, stopTracking])
+    }, [coords, dispatch, isTrip, isOnline, stopTracking, searchParams, router])
 
     return (
         <div className="flex gap-2 w-full relative">
             <button
                 onClick={handleStartTrip}
                 type='button'
+                disabled={!isOnline}
                 className={`flex-1 flex justify-center items-center gap-2 py-3 rounded-md transition-all uppercase text-[11px] font-bold tracking-[2px] shadow-lg active:scale-[0.98]
-                    ${isTracking
+                    ${isTrip
                         ? 'bg-destructive text-white shadow-red-500/20'
-                        : 'bg-[#0C79FE] text-white shadow-blue-500/20 hover:brightness-110'
+                        : isOnline
+                            ? 'bg-[#0C79FE] text-white shadow-blue-500/20 hover:brightness-110'
+                            : 'bg-muted-foreground text-white opacity-70 cursor-not-allowed'
                     }`}
             >
                 <CarFront size={18} strokeWidth={2.5} />
-                <span>{isTracking ? 'Stop' : 'Start'}</span>
+                <span>{isTrip ? 'Stop' : 'Start'}</span>
             </button>
             <OptionsBtn coords={coords} />
         </div>
@@ -2588,16 +2266,20 @@ export default QuickBtns
 <file path="src/components/map-view/side_bar/_components/results/Results.tsx">
 'use client'
 import { useSelector, useDispatch, shallowEqual } from 'react-redux'
-import { RootState, AppDispatch } from '@/app/store'
-import { clearDetails } from '@/store/details/detailsSlice'
+import dynamic from 'next/dynamic'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useEffect, memo, useCallback } from 'react'
-import { DetailCard } from './DetailCard'
-import { LocationCard } from './LocationCard'
-import MyCategory from './categories/MyCategory'
+
+import { RootState, AppDispatch } from '@/app/store'
+import { clearDetails } from '@/store/details/detailsSlice'
 import { deleteSearch } from '@/store/global_data/dataSlice'
-import { SearchX, WifiOff } from 'lucide-react'
 import { clearTrip } from '@/store/trip/tripSlice'
+import MyCategory from './categories/MyCategory'
+
+import { SearchX, WifiOff } from 'lucide-react'
+
+const DetailCard = dynamic(() => import('./DetailCard'), { ssr: false })
+const LocationCard = dynamic(() => import('./LocationCard'), { ssr: false })
 
 const renderSkeleton = () => (
     <div className="space-y-3 px-1">
@@ -2883,6 +2565,283 @@ function Suggestion({ sliceTo, className }: Props) {
 export default React.memo(Suggestion);
 </file>
 
+<file path="package.json">
+{
+  "name": "path-wise",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint"
+  },
+  "dependencies": {
+    "@reduxjs/toolkit": "^2.11.2",
+    "axios": "^1.14.0",
+    "clsx": "^2.1.1",
+    "framer-motion": "^12.38.0",
+    "lucide-react": "^1.7.0",
+    "mapbox-gl": "^3.20.0",
+    "maplibre-gl": "^5.21.1",
+    "next": "16.2.2",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "react-map-gl": "^8.1.0",
+    "react-redux": "^9.2.0",
+    "shadcn": "^4.1.2",
+    "sonner": "^2.0.7",
+    "tailwind-merge": "^3.5.0",
+    "tw-animate-css": "^1.4.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.2",
+    "postcss": "^8.5.8",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}
+</file>
+
+<file path="src/app/globals.css">
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-geist-mono);
+  --font-heading: var(--font-sans);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-window: var(--window);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+:root {
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: #F7F7F6;
+  --window: oklch(100% 0.00011 271.152);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: #0C79FE;
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: #E9E9E9;
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: #868782;
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --radius: 0.625rem;
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
+}
+
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --window: oklch(23.929% 0.00003 271.152);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.556 0 0);
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none !important;
+}
+
+.hide-scrollbar {
+  -ms-overflow-style: none !important;
+  scrollbar-width: none !important;
+}
+
+
+button {
+  cursor: pointer;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+
+  html {
+    @apply font-sans;
+  }
+}
+</file>
+
+<file path="src/app/layout.tsx">
+import type { Metadata } from "next";
+import { Noto_Sans_Arabic, Geist_Mono } from "next/font/google";
+import "./globals.css";
+import Wrapper from "./Wrapper";
+import { Toaster } from "sonner";
+
+const arabicFont = Noto_Sans_Arabic({
+  variable: "--font-arabic",
+  subsets: ["arabic", "latin"],
+  display: "swap",
+  weight: ["400", "500", "700"],
+});
+
+const geistMono = Geist_Mono({
+  variable: "--font-geist-mono",
+  subsets: ["latin"],
+  display: "swap",
+});
+
+export const metadata: Metadata = {
+  title: "PathWise - Smart Route Optimizer",
+  description: "Optimizing your journeys with high performance",
+};
+
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
+  return (
+    <html
+      lang="en"
+      className={`${arabicFont.variable} ${geistMono.variable} h-full antialiased`}
+      suppressHydrationWarning
+    >
+      <head>
+        <link rel="preconnect" href="https://api.maptiler.com" />
+        <link rel="dns-prefetch" href="https://api.maptiler.com" />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                try {
+                  var mode = localStorage.getItem('theme');
+                  var supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+                  if (mode === 'dark' || (!mode && supportDarkMode)) {
+                    document.documentElement.classList.add('dark');
+                  } else {
+                    document.documentElement.classList.remove('dark');
+                  }
+                } catch (e) {}
+              })();
+            `,
+          }}
+        />
+      </head>
+
+      <body className={`${arabicFont.className} min-h-full flex flex-col bg-background text-foreground transition-colors duration-300`}>
+        <Wrapper>
+          {children}
+          <Toaster
+            position="top-center"
+            richColors
+            toastOptions={{
+              className: "border border-border/50 backdrop-blur-md bg-window/80 text-foreground rounded-xl shadow-2xl",
+              descriptionClassName: "text-muted-foreground text-[10px]",
+              style: {
+                padding: '15px 16px',
+                backgroundColor: 'var(--card)',
+                color: 'var(--card-foreground)',
+                border: '1px solid var(--border)',
+                borderRadius: '12px',
+              },
+            }}
+          />
+        </Wrapper>
+      </body>
+    </html >
+  );
+}
+</file>
+
 <file path="src/app/store.ts">
 import { configureStore } from '@reduxjs/toolkit'
 import langReducer from '../store/lang/languageSlice'
@@ -2909,11 +2868,134 @@ export type RootState = ReturnType<typeof store.getState>
 export type AppDispatch = typeof store.dispatch
 </file>
 
+<file path="src/components/map-view/side_bar/_components/results/DetailCard.tsx">
+'use client'
+
+import React, { useCallback, memo } from 'react'
+import Window from '@/reuseable_components/Window';
+import QuickBtns from './quick_access/QuickBtns';
+import Suggestion from '@/reuseable_components/Suggestion';
+import { motion } from 'framer-motion';
+import { MapPin, Clock, Copy, X, Star } from 'lucide-react';
+import { toast } from 'sonner';
+import TripInfo from '@/components/map-view/main_map/TripInfo';
+import { useSelector } from 'react-redux';
+import { RootState } from '@/app/store';
+
+interface DetailCardProps {
+    location: any;
+    onBack: () => void;
+}
+
+function DetailCardComponent({ location, onBack }: DetailCardProps) {
+
+    const { coordinates } = useSelector((state: RootState) => state.trip);
+    const showBar = coordinates.length > 0;
+
+    const handleCopyAddress = useCallback(() => {
+        if (location?.name) {
+            navigator.clipboard.writeText(window.location.href);
+            toast.success("Link copied to clipboard");
+        }
+    }, [location?.name]);
+
+    return (
+        <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 20 }}
+            className="w-full flex flex-col h-full"
+        >
+            {/* Header Section */}
+            <div className='w-full flex justify-between items-start mb-4'>
+                <div className="flex-1 overflow-hidden pr-2">
+                    <h2 className="text-xl md:text-2xl font-black text-foreground tracking-tighter leading-tight italic uppercase truncate">
+                        {location?.name || "Selected Location"}
+                    </h2>
+                    <div className='flex items-center gap-2 mt-1'>
+                        <Star className="size-4 text-amber-500 shrink-0" />
+                        <span className="text-sm font-bold text-foreground">{location?.rating || "0.0"}</span>
+                        <span className="text-[10px] text-muted-foreground font-medium truncate">
+                            • {location?.reviewsCount || 0} reviews
+                        </span>
+                    </div>
+                </div>
+                <button
+                    type='button'
+                    onClick={onBack}
+                    className="p-2 bg-secondary/50 hover:bg-secondary hover:text-white rounded-full transition-all active:scale-90 shrink-0"
+                >
+                    <X className="size-4" />
+                </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto hide-scrollbar space-y-5 pb-6">
+
+                {/* Quick Action Buttons */}
+                <QuickBtns coords={location?.coords} />
+
+                {showBar && (
+                    <Window className='flex justify-center items-center md:hidden flex'>
+                        <TripInfo className='md:hidden flex' />
+                    </Window>
+                )}
+
+                {/* Location Details Window */}
+                <Window title='Location Details' className='p-4 space-y-5'>
+                    <div className="flex items-center gap-4 group/item">
+                        <div className="p-2.5 bg-red-600 rounded-full shrink-0">
+                            <MapPin className="size-5 text-white" />
+                        </div>
+                        <div className="flex-1 overflow-hidden">
+                            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.15em] mb-1">Address</p>
+                            <p className="text-sm font-semibold text-foreground/90 leading-snug line-clamp-2">
+                                {location?.name || "Address not available"}
+                            </p>
+                        </div>
+                        <button
+                            type='button'
+                            onClick={handleCopyAddress}
+                            className="opacity-0 group-hover/item:opacity-100 p-2 hover:bg-secondary rounded-lg transition-all shrink-0 md:flex hidden"
+                        >
+                            <Copy className="size-4 text-muted-foreground" />
+                        </button>
+                    </div>
+
+                    <div className="flex items-start gap-4">
+                        <div className="p-2.5 bg-blue-600 rounded-full shrink-0">
+                            <Clock className="size-5 text-white" />
+                        </div>
+                        <div className="flex-1">
+                            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.15em] mb-1">Business Hours</p>
+                            <div className="flex items-center flex-wrap gap-x-2">
+                                <span className={`text-[11px] font-black px-2 py-0.5 rounded-full ${location?.isOpen ? 'bg-emerald-500/10 text-emerald-600' : 'bg-red-500/10 text-red-600'}`}>
+                                    {location?.isOpen ? 'OPEN' : 'CLOSED'}
+                                </span>
+                                <span className="text-xs text-muted-foreground font-medium italic">
+                                    • {location?.hours || "Check schedule"}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </Window>
+
+                {/* Suggestions Section */}
+                <div className="pt-2">
+                    <Suggestion sliceTo={3} />
+                </div>
+            </div>
+        </motion.div>
+    );
+}
+
+export default memo(DetailCardComponent);
+</file>
+
 <file path="src/components/map-view/side_bar/Sidebar.tsx">
 'use client'
 
-import React, { useState, useRef, useEffect, useMemo } from 'react'
-import { motion, useAnimationControls, useDragControls } from 'framer-motion'
+import React, { useRef, useEffect, useMemo } from 'react'
+import { motion, useAnimationControls, useDragControls, PanInfo } from 'framer-motion'
 import { useOutsideClick } from '@/hooks/useOutsideClick'
 import { useSearchParams, useRouter } from 'next/navigation'
 import NearbyPlacesView from '@/components/views/NearbyPlacesView'
@@ -2929,9 +3011,9 @@ import { useSelector } from 'react-redux'
 import { RootState } from '@/app/store'
 
 const POSITIONS = {
-    bottom: '82vh',
-    middle: '50vh',
-    top: '10vh',
+    bottom: 0.82,
+    middle: 0.50,
+    top: 0.10,
 }
 
 function Sidebar() {
@@ -2940,43 +3022,63 @@ function Sidebar() {
     const controls = useAnimationControls()
     const dragControls = useDragControls()
     const sidebarRef = useRef<HTMLDivElement>(null)
-    const [activeSlide, setActiveSlide] = useState(false)
+    const scrollRef = useRef<HTMLDivElement>(null)
 
     const isMobile = useMediaQuery("(max-width: 767px)")
-    const { coordinates } = useSelector((state: RootState) => state.trip);
-    const isNavigating = coordinates.length > 0;
+    const { coordinates } = useSelector((state: RootState) => state.trip)
+    const isNavigating = coordinates.length > 0
 
+    const view = searchParams.get('view')
+    const isOpen = searchParams.get('active') === 'true'
     const long = searchParams.get('lng')
     const lat = searchParams.get('lat')
-    const view = searchParams.get('view')
     const selectedLocation = !!(long && lat)
 
-    const targetPosition = useMemo(() => {
-        if (!isMobile) return '0'
-        if (view || activeSlide) return POSITIONS.top
-        if (selectedLocation) return POSITIONS.middle
-        return POSITIONS.bottom
-    }, [isMobile, view, activeSlide, selectedLocation])
+    const getPos = (pct: number) => typeof window !== 'undefined' ? window.innerHeight * pct : 0
+
+    const targetY = useMemo(() => {
+        if (!isMobile) return 0
+        if (view || isOpen) return getPos(POSITIONS.top)
+        if (selectedLocation) return getPos(POSITIONS.middle)
+        return getPos(POSITIONS.bottom)
+    }, [isMobile, view, isOpen, selectedLocation])
 
     useEffect(() => {
-        controls.start({ y: targetPosition })
-    }, [targetPosition, controls])
+        controls.start({ y: targetY })
+    }, [targetY, controls])
 
-    const handleDragEnd = (_: any, info: any) => {
+    const setSidebarState = (active: boolean) => {
+        const params = new URLSearchParams(searchParams.toString())
+        if (active) params.set('active', 'true')
+        else params.delete('active')
+        router.push(`?${params.toString()}`, { scroll: false })
+    }
+
+    const handleDragEnd = (_: any, info: PanInfo) => {
         if (!isMobile) return
         const { velocity, offset } = info
+        const currentY = targetY + offset.y
+        const mid = getPos(POSITIONS.middle)
+        const bot = getPos(POSITIONS.bottom)
 
-        if (velocity.y < -500 || offset.y < -150) {
-            setActiveSlide(true)
-        } else if (velocity.y > 500 || offset.y > 150) {
-            setActiveSlide(false)
-            if (view) router.push('/', { scroll: false })
+        if (velocity.y < -500 || currentY < mid) {
+            setSidebarState(true)
+        } else {
+            setSidebarState(false)
+            if (view && currentY > (mid + bot) / 2) router.push('/', { scroll: false })
+        }
+    }
+
+    const handleScrollCapture = (e: React.UIEvent<HTMLDivElement>) => {
+        if (!isMobile || !scrollRef.current) return
+        const { scrollTop } = scrollRef.current
+        if (scrollTop <= 0 && isOpen) {
+            // Logic for pulling down when scroll is at top can be added here via dragControls
         }
     }
 
     useOutsideClick(sidebarRef, () => {
-        if (isMobile && (selectedLocation || activeSlide || view)) {
-            setActiveSlide(false)
+        if (isMobile && (selectedLocation || isOpen || view)) {
             router.push('/', { scroll: false })
         }
     })
@@ -2988,52 +3090,50 @@ function Sidebar() {
                 drag={isMobile ? 'y' : false}
                 dragControls={dragControls}
                 dragListener={false}
-                dragConstraints={{ top: 0, bottom: 0 }}
-                dragElastic={0.08}
+                dragConstraints={{
+                    top: getPos(POSITIONS.top),
+                    bottom: getPos(POSITIONS.bottom)
+                }}
+                dragElastic={0.1}
                 dragMomentum={false}
                 animate={controls}
-                initial={{ y: isMobile ? POSITIONS.bottom : 0 }}
+                initial={{ y: isMobile ? getPos(POSITIONS.bottom) : 0 }}
                 onDragEnd={handleDragEnd}
-                transition={{ type: 'spring', damping: 30, stiffness: 250 }}
-                style={{ willChange: 'transform' }}
+                transition={{ type: 'spring', damping: 30, stiffness: 300, mass: 0.8 }}
                 className={cn(
-                    "h-[100vh] md:h-full w-full",
-                    "bg-card/95 md:backdrop-blur-xl",
-                    "md:border border-border shadow-2xl",
-                    "rounded-t-[24px] md:rounded-3xl",
-                    "pointer-events-auto",
-                    "md:p-5 p-4 pb-10",
-                    "flex flex-col md:gap-6 space-y-3",
-                    "md:overflow-hidden",
+                    "h-[100vh] pt-2 md:h-full w-full absolute top-0 left-0 md:relative",
+                    "bg-card/95 md:backdrop-blur-xl md:border border-border shadow-2xl rounded-t-[24px] md:rounded-3xl pointer-events-auto",
+                    "flex flex-col md:gap-6 space-y-3 md:overflow-hidden pb-10"
                 )}
             >
-
                 {isNavigating && (
-                    <div className='absolute md:hidden flex -translate-y-16 p-3 bg-card rounded-full'>
+                    <div className='absolute md:hidden flex -translate-y-15 p-3 bg-card rounded-full left-4'>
                         <ExpandBtn icon={<ScanEye className='size-5' />} />
                     </div>
                 )}
 
                 <div
-                    onPointerDown={(e) => {
-                        if (!isMobile) return
-                        dragControls.start(e)
-                    }}
-                    className="w-full flex justify-center items-center md:hidden shrink-0 cursor-grab active:cursor-grabbing touch-none select-none"
+                    onPointerDown={(e) => isMobile && dragControls.start(e)}
+                    className="w-full flex justify-center items-center md:hidden shrink-0 cursor-grab active:cursor-grabbing touch-none select-none py-2"
                 >
                     <div className="w-12 h-1.5 rounded-full bg-muted-foreground/30" />
                 </div>
-                <div className="flex-1 flex flex-col overflow-hidden">
+
+                <div
+                    ref={scrollRef}
+                    onScroll={handleScrollCapture}
+                    className="flex-1 flex flex-col overflow-y-auto hide-scrollbar overscroll-contain px-4 md:px-5"
+                >
                     {view ? (
-                        <div className="flex-1 overflow-y-auto hide-scrollbar overscroll-contain">
+                        <div className="flex-1">
                             {view === 'favorites' && <Favorite sliceFavorsTo={8} />}
                             {view === 'nearby_places' && <NearbyPlacesView />}
                             {view === 'recent' && <Recent sliceRecentTo={8} />}
                         </div>
                     ) : (
-                        <div className="flex flex-col h-full overflow-hidden">
+                        <div className="flex flex-col h-full">
                             {!selectedLocation && <SearchInput />}
-                            <div className="flex-1 overflow-y-auto hide-scrollbar overscroll-contain mt-4">
+                            <div className="md:mt-4">
                                 <Results />
                             </div>
                         </div>

@@ -1,7 +1,9 @@
 import { AnimatePresence } from 'framer-motion'
 import { MoreHorizontal } from 'lucide-react'
 import React, { useCallback, useState } from 'react'
-import Options from './Options'
+import dynamic from 'next/dynamic'
+
+const Options = dynamic(() => import('./Options'), { ssr: false })
 
 type Props = {
     coords: { lat: number; lng: number }

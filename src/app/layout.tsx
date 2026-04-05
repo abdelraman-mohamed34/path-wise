@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Noto_Sans_Arabic, Geist_Mono } from "next/font/google"; // استبدال Geist بالخط العربي
+import { Noto_Sans_Arabic, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Wrapper from "./Wrapper";
 import { Toaster } from "sonner";
@@ -29,12 +29,13 @@ export default function RootLayout({
 }>) {
   return (
     <html
-      lang="ar"
-      dir="rtl"
+      lang="en"
       className={`${arabicFont.variable} ${geistMono.variable} h-full antialiased`}
       suppressHydrationWarning
     >
       <head>
+        <link rel="preconnect" href="https://api.maptiler.com" />
+        <link rel="dns-prefetch" href="https://api.maptiler.com" />
         <script
           dangerouslySetInnerHTML={{
             __html: `

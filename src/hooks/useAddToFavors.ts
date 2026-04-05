@@ -32,18 +32,16 @@ export const useFavorites = () => {
                 ...newFavors,
                 name: result?.name || "Unknown Location"
             };
-
             setFavors((prevFavors) => {
                 const filtered = prevFavors.filter(
                     (item) => !(item.lat === newFavors.lat && item.lng === newFavors.lng)
                 );
                 const updated = [entryWithDetails, ...filtered].slice(0, 8);
                 localStorage.setItem("favorites", JSON.stringify(updated));
-
                 return updated;
             });
-
-        } catch (error) {
+        } catch (error: any) {
+            if (error?.name === 'ConditionError') return;
             console.error("Failed to add to favorites", error);
         }
     };

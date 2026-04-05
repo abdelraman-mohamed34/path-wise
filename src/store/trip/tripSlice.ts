@@ -8,6 +8,7 @@ type TripState = {
     duration: number | null;
     status: 'idle' | 'loading' | 'error' | 'success';
     userLocation: { lat: number; lng: number } | null;
+    isTrip: boolean
 }
 
 const initialState: TripState = {
@@ -16,6 +17,7 @@ const initialState: TripState = {
     duration: null,
     status: 'idle',
     userLocation: null,
+    isTrip: false,
 };
 
 export const tripSlice = createSlice({
@@ -28,8 +30,9 @@ export const tripSlice = createSlice({
             state.duration = null;
             state.status = 'idle';
             state.userLocation = null;
+            state.isTrip = false;
         },
-        setUserLocation: (state, action: PayloadAction<{ lat: number; lng: number } | null>) => {
+        setUserLocationForTrip: (state, action: PayloadAction<{ lat: number; lng: number } | null>) => {
             state.userLocation = action.payload;
         }
     },
@@ -38,19 +41,22 @@ export const tripSlice = createSlice({
             .addCase(fetchTripPoints.pending, (state) => {
                 state.status = 'loading';
                 state.coordinates = [];
+                state.isTrip = false;
             })
             .addCase(fetchTripPoints.fulfilled, (state, action: any) => {
                 state.status = 'success';
                 state.coordinates = action.payload.geometry.coordinates;
                 state.distance = action.payload.distance;
                 state.duration = action.payload.duration;
+                state.isTrip = true;
             })
             .addCase(fetchTripPoints.rejected, (state) => {
                 state.status = 'error';
                 state.coordinates = [];
+                state.isTrip = false;
             })
     }
 });
 
-export const { clearTrip, setUserLocation } = tripSlice.actions;
+export const { clearTrip, setUserLocationForTrip } = tripSlice.actions;
 export default tripSlice.reducer;

@@ -1,15 +1,19 @@
 'use client'
 import { useSelector, useDispatch, shallowEqual } from 'react-redux'
-import { RootState, AppDispatch } from '@/app/store'
-import { clearDetails } from '@/store/details/detailsSlice'
+import dynamic from 'next/dynamic'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useEffect, memo, useCallback } from 'react'
-import { DetailCard } from './DetailCard'
-import { LocationCard } from './LocationCard'
-import MyCategory from './categories/MyCategory'
+
+import { RootState, AppDispatch } from '@/app/store'
+import { clearDetails } from '@/store/details/detailsSlice'
 import { deleteSearch } from '@/store/global_data/dataSlice'
-import { SearchX, WifiOff } from 'lucide-react'
 import { clearTrip } from '@/store/trip/tripSlice'
+import MyCategory from './categories/MyCategory'
+
+import { SearchX, WifiOff } from 'lucide-react'
+
+const DetailCard = dynamic(() => import('./DetailCard'), { ssr: false })
+const LocationCard = dynamic(() => import('./LocationCard'), { ssr: false })
 
 const renderSkeleton = () => (
     <div className="space-y-3 px-1">

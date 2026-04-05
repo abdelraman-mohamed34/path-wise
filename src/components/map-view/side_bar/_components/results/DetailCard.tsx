@@ -16,7 +16,7 @@ interface DetailCardProps {
     onBack: () => void;
 }
 
-const DetailCardComponent = ({ location, onBack }: DetailCardProps) => {
+function DetailCardComponent({ location, onBack }: DetailCardProps) {
 
     const { coordinates } = useSelector((state: RootState) => state.trip);
     const showBar = coordinates.length > 0;
@@ -71,7 +71,7 @@ const DetailCardComponent = ({ location, onBack }: DetailCardProps) => {
 
                 {/* Location Details Window */}
                 <Window title='Location Details' className='p-4 space-y-5'>
-                    <div className="flex items-start gap-4 group/item">
+                    <div className="flex items-center gap-4 group/item">
                         <div className="p-2.5 bg-red-600 rounded-full shrink-0">
                             <MapPin className="size-5 text-white" />
                         </div>
@@ -84,7 +84,7 @@ const DetailCardComponent = ({ location, onBack }: DetailCardProps) => {
                         <button
                             type='button'
                             onClick={handleCopyAddress}
-                            className="opacity-0 group-hover/item:opacity-100 p-2 hover:bg-secondary rounded-lg transition-all shrink-0"
+                            className="opacity-0 group-hover/item:opacity-100 p-2 hover:bg-secondary rounded-lg transition-all shrink-0 md:flex hidden"
                         >
                             <Copy className="size-4 text-muted-foreground" />
                         </button>
@@ -117,4 +117,4 @@ const DetailCardComponent = ({ location, onBack }: DetailCardProps) => {
     );
 }
 
-export const DetailCard = memo(DetailCardComponent);
+export default memo(DetailCardComponent);

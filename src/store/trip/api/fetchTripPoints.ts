@@ -12,22 +12,31 @@ interface FetchTripParams {
 }
 
 export const fetchTripPoints = createAsyncThunk(
-    'route/fetchTripPoints',
-    async ({ sCoords, eCoords }: FetchTripParams, { rejectWithValue }) => {
+    'trip/fetchTripPoints',
+    async ({ sCoords, eCoords }: { sCoords: any; eCoords: any }, { rejectWithValue, signal }) => {
         try {
-            const map_key = process.env.NEXT_PUBLIC_MAP_KEY;
+            const response = await axios.get(
+                `https://router.project-osrm.org/route/v1/driving/${sCoords.lng},${sCoords.lat};${eCoords.lng},${eCoords.lat}?overview=full&geometries=geojson`,
+                {
+                    signal,
+                    timeout: 10000
+                }
+            );
 
-            if (!sCoords.lat || !eCoords.lat) {
-                return rejectWithValue("Missing coordinates");
+            if (response.data.code !== 'Ok') {
+                return rejectWithValue('Route not found');
             }
 
-            const url = `https://router.project-osrm.org/route/v1/driving/${sCoords.lng},${sCoords.lat};${eCoords.lng},${eCoords.lat}?overview=full&geometries=geojson`;
-            const response = await axios.get(url);
-            const data = response.data;
-            return data.routes[0];
-
+            return response.data.routes[0].geometry.coordinates.map((coord: any) => ({
+                lat: coord[1],
+                lng: coord[0],
+            }));
         } catch (error: any) {
-            return rejectWithValue(error.response?.data?.message || error.message);
+            if (axios.isCancel(error)) {
+                console.log('Request cancelled');
+                return rejectWithValue('cancelled');
+            }
+            return rejectWithValue(error.message || 'Failed to fetch route');
         }
     }
 );

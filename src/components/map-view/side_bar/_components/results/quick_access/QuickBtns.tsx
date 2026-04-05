@@ -1,47 +1,79 @@
 'use client'
-import { CarFront, MoreHorizontal } from 'lucide-react'
-import React, { useState, useCallback, useEffect, useRef, memo } from 'react'
-import { useDispatch } from 'react-redux'
-import { AppDispatch } from '@/app/store'
+import { CarFront } from 'lucide-react'
+import React, { useCallback, useEffect, useRef, memo } from 'react'
+import { useDispatch, useSelector } from 'react-redux'
+import { AppDispatch, RootState } from '@/app/store'
 import { fetchTripPoints } from '@/store/trip/api/fetchTripPoints'
-import { clearTrip, setUserLocation } from '@/store/trip/tripSlice'
+import { clearTrip, setUserLocationForTrip } from '@/store/trip/tripSlice'
 import { toast } from 'sonner'
 import OptionsBtn from './OptionsBtn'
+import { useRouter, useSearchParams } from 'next/navigation'
 
 type Props = {
     coords: { lat: number; lng: number }
 }
 
+type RefCoords = {
+    lat: number; lng: number
+}
+
 const QuickBtns = memo(({ coords }: Props) => {
-
-    const [isTracking, setIsTracking] = useState(false) // start btn state handler
-
+    const router = useRouter()
     const watchIdRef = useRef<number | null>(null)
+    const coordsRef = useRef<RefCoords | null>(null)
+    const currentRequestRef = useRef<any>(null)
     const dispatch = useDispatch<AppDispatch>()
+    const { isTrip } = useSelector((d: RootState) => d.trip)
+    const [isOnline, setIsOnline] = React.useState(true)
+
+    const searchParams = useSearchParams()
 
     useEffect(() => {
-        return () => { if (watchIdRef.current !== null) { navigator.geolocation.clearWatch(watchIdRef.current) } }
+        setIsOnline(window.navigator.onLine)
+        const updateStatus = () => setIsOnline(window.navigator.onLine)
+        window.addEventListener('online', updateStatus)
+        window.addEventListener('offline', updateStatus)
+        return () => {
+            window.removeEventListener('online', updateStatus)
+            window.removeEventListener('offline', updateStatus)
+        }
     }, [])
 
-    // functions
+    useEffect(() => {
+        return () => {
+            if (watchIdRef.current !== null) {
+                navigator.geolocation.clearWatch(watchIdRef.current)
+            }
+            if (currentRequestRef.current) {
+                currentRequestRef.current.abort()
+            }
+        }
+    }, [])
+
     const stopTracking = useCallback(() => {
         if (watchIdRef.current !== null) {
             navigator.geolocation.clearWatch(watchIdRef.current)
             watchIdRef.current = null
         }
-        setIsTracking(false)
+        if (currentRequestRef.current) {
+            currentRequestRef.current.abort()
+        }
+        coordsRef.current = null
         dispatch(clearTrip())
-        dispatch(setUserLocation(null))
+        dispatch(setUserLocationForTrip(null))
     }, [dispatch])
 
     const handleStartTrip = useCallback(() => {
-        if (isTracking) {
+        if (!isOnline) {
+            toast.error("Connection error! Please check your internet.")
+            return
+        }
+        if (isTrip) {
             stopTracking()
             return
         }
-
         if (!navigator.geolocation) {
-            toast.error("GPS not supported")
+            toast.error("Location access not supported by your browser")
             return
         }
 
@@ -50,41 +82,69 @@ const QuickBtns = memo(({ coords }: Props) => {
         watchIdRef.current = navigator.geolocation.watchPosition(
             async (p) => {
                 toast.dismiss(toastId)
-                setIsTracking(true)
-                dispatch(setUserLocation({
-                    lat: p.coords.latitude,
-                    lng: p.coords.longitude
-                }))
+                const currentLat = p.coords.latitude
+                const currentLng = p.coords.longitude
+
+                dispatch(setUserLocationForTrip({ lat: currentLat, lng: currentLng }))
+
+                if (coordsRef.current) {
+                    const latDiff = Math.abs(coordsRef.current.lat - currentLat)
+                    const lngDiff = Math.abs(coordsRef.current.lng - currentLng)
+                    if (latDiff < 0.0003 && lngDiff < 0.0003) return
+                }
+
                 try {
-                    await dispatch(fetchTripPoints({
-                        sCoords: { lat: p.coords.latitude, lng: p.coords.longitude },
+                    if (currentRequestRef.current) {
+                        currentRequestRef.current.abort()
+                    }
+
+                    const request = dispatch(fetchTripPoints({
+                        sCoords: { lat: currentLat, lng: currentLng },
                         eCoords: { lat: coords.lat, lng: coords.lng }
-                    })).unwrap()
-                } catch {
-                    toast.error("Could not update route")
+                    }))
+
+                    currentRequestRef.current = request
+
+                    await request.unwrap()
+
+                    coordsRef.current = { lat: currentLat, lng: currentLng }
+
+                    const params = new URLSearchParams(searchParams.toString())
+                    if (params.has('active')) {
+                        params.delete('active')
+                        router.push(`?${params.toString()}`, { scroll: false })
+                    }
+
+                } catch (err: any) {
+                    if (err !== 'cancelled' && err?.name !== 'AbortError') {
+                        toast.error("Could not update route")
+                    }
                 }
             },
             () => {
                 toast.dismiss(toastId)
                 toast.error("Enable GPS to start navigation")
             },
-            { enableHighAccuracy: true, maximumAge: 3000 }
+            { enableHighAccuracy: true, maximumAge: 2000, timeout: 5000 }
         )
-    }, [isTracking, coords, dispatch, stopTracking])
+    }, [coords, dispatch, isTrip, isOnline, stopTracking, searchParams, router])
 
     return (
         <div className="flex gap-2 w-full relative">
             <button
                 onClick={handleStartTrip}
                 type='button'
+                disabled={!isOnline}
                 className={`flex-1 flex justify-center items-center gap-2 py-3 rounded-md transition-all uppercase text-[11px] font-bold tracking-[2px] shadow-lg active:scale-[0.98]
-                    ${isTracking
+                    ${isTrip
                         ? 'bg-destructive text-white shadow-red-500/20'
-                        : 'bg-[#0C79FE] text-white shadow-blue-500/20 hover:brightness-110'
+                        : isOnline
+                            ? 'bg-[#0C79FE] text-white shadow-blue-500/20 hover:brightness-110'
+                            : 'bg-muted-foreground text-white opacity-70 cursor-not-allowed'
                     }`}
             >
                 <CarFront size={18} strokeWidth={2.5} />
-                <span>{isTracking ? 'Stop' : 'Start'}</span>
+                <span>{isTrip ? 'Stop' : 'Start'}</span>
             </button>
             <OptionsBtn coords={coords} />
         </div>

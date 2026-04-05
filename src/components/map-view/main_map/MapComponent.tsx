@@ -7,6 +7,7 @@ import { getLocationDetails } from "@/store/details/api/fetchLocationDetails";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useRecentSearches } from "@/hooks/useAddToRecent";
 import { clearTrip } from "@/store/trip/tripSlice";
+import "maplibre-gl/dist/maplibre-gl.css";
 
 interface MapComponentProps {
     mapStyle: string;
